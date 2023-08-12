@@ -17,12 +17,15 @@ target_include_directories( bigg PUBLIC bigg/include )
 set(SOURCE_FILES
 	src/value.cpp
 	src/imnodes.cpp
+	src/color_node_editor.cpp
 )
 
 set(HEADER_FILES
 	include/value.h
 	include/imnodes.h
 	include/imnodes_internal.h
+	include/node_editor.h
+	include/graph.h
 )
 
 include_directories(include)
