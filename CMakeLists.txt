@@ -16,15 +16,18 @@ target_include_directories( bigg PUBLIC bigg/include )
 
 set(SOURCE_FILES
 	src/value.cpp
+	src/imnodes.cpp
 )
 
 set(HEADER_FILES
 	include/value.h
+	include/imnodes.h
+	include/imnodes_internal.h
 )
 
 include_directories(include)
 
-add_executable( nn_garden src/main.cpp ${SOURCE_FILES} ${HEADER_FILES})
+add_executable( nn_garden ${SOURCE_FILES} ${HEADER_FILES} src/main.cpp)
 
 target_link_libraries( nn_garden bigg )
 

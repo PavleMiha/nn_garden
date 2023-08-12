@@ -6,6 +6,7 @@
 
 #include "bigg.hpp"
 #include "value.h"
+#include "imgui.h"
 
 class NNGarden : public bigg::Application
 {
