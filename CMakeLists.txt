@@ -18,6 +18,7 @@ set(SOURCE_FILES
 	src/value.cpp
 	src/imnodes.cpp
 	src/color_node_editor.cpp
+	src/graph_editor.cpp
 )
 
 set(HEADER_FILES
@@ -26,9 +27,10 @@ set(HEADER_FILES
 	include/imnodes_internal.h
 	include/node_editor.h
 	include/graph.h
+	include/graph_editor.h
 )
 
-include_directories(include)
+include_directories(include deps/imgui)
 
 add_executable( nn_garden ${SOURCE_FILES} ${HEADER_FILES} src/main.cpp)
 

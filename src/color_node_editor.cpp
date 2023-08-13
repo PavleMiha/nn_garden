@@ -188,8 +188,7 @@ public:
 
         ImGui::TextUnformatted("Edit the color of the output color window using nodes.");
         ImGui::Columns(2);
-        ImGui::TextUnformatted("A -- add node");
-        ImGui::TextUnformatted("X -- delete selected node or link");
+        ImGui::TextUnformatted("A -- add node   X -- delete selected node or link");
         ImGui::NextColumn();
         if (ImGui::Checkbox("emulate_three_button_mouse", &emulate_three_button_mouse))
         {

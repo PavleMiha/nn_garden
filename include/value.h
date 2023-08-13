@@ -21,6 +21,7 @@ public:
 	Value* m_child1{ nullptr };
 	Value* m_child2{ nullptr };
 
+	Value() {};
 	Value(float value) : m_value(value) {};
 
 	Value(float value, Operation operation, Value* parent1, Value* parent2) :

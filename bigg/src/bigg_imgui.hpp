@@ -68,6 +68,8 @@ static void imguiInit( GLFWwindow* window )
 	io.KeyMap[ ImGuiKey_X ] = GLFW_KEY_X;
 	io.KeyMap[ ImGuiKey_Y ] = GLFW_KEY_Y;
 	io.KeyMap[ ImGuiKey_Z ] = GLFW_KEY_Z;
+	
+	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
 	io.SetClipboardTextFn = imguiSetClipboardText;
 	io.GetClipboardTextFn = imguiGetClipboardText;
