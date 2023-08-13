@@ -266,9 +266,9 @@ void show_graph_editor(bool* open) {
 
 			if (values[i].m_operation == Operation::None)
 			{
-				ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(181, 109*0.3, 11*1.4, 255));
-				ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(190, 126*0.3, 45*1.4, 255));
-				ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(204, 148*0.3, 81*1.1, 255));
+				ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(0x69, 0x0f, 0x62, 255));
+				ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(0x8b, 0x26, 0x84, 255));
+				ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(0x94, 0x2e, 0x8c, 255));
 			}
 
 			ImNodes::BeginNode(i);
