@@ -25,6 +25,7 @@ class NNGarden : public bigg::Application
 
 	bool graph_open = true;
 	bool demo_open = false;
+	bool perf_open = false;
 
 	void update( float dt ) {
 		bgfx::touch( 0 );
@@ -40,6 +41,7 @@ class NNGarden : public bigg::Application
 		{
 			ImGui::MenuItem("Graph Window", "", &graph_open);
 			ImGui::MenuItem("Demo Window", "", &demo_open);
+			ImGui::MenuItem("Performance", "", &perf_open);
 
 			//ImGui::MenuItem("Graph");
 			//ImGui::EndMenu("Control");
@@ -53,6 +55,13 @@ class NNGarden : public bigg::Application
 
 		// Rendering
 		//ImGui::Render();
+		if (perf_open)
+		{
+			ImGui::Begin("Performance", &perf_open);
+			ImGui::Text("%.1f", ImGui::GetIO().Framerate);
+			ImGui::End();
+
+		}
 		if (demo_open)
 			ImGui::ShowDemoWindow(&demo_open);
 	}

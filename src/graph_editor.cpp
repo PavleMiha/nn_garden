@@ -248,6 +248,7 @@ void show_graph_editor(bool* open) {
 	auto flags = ImGuiWindowFlags_MenuBar;
 
 	// The node editor window
+
 	ImGui::Begin("Graph Editor", open, flags);
 
 	ImNodes::BeginNodeEditor();
