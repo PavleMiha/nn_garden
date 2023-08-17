@@ -19,6 +19,7 @@ set(SOURCE_FILES
 	src/imnodes.cpp
 	src/color_node_editor.cpp
 	src/graph_editor.cpp
+	src/imgui_canvas.cpp
 )
 
 set(HEADER_FILES
@@ -28,6 +29,7 @@ set(HEADER_FILES
 	include/node_editor.h
 	include/graph.h
 	include/graph_editor.h
+	include/imgui_canvas.h
 )
 
 include_directories(include deps/imgui)

@@ -2,6 +2,7 @@
 #include <imgui.h>
 #include <vector>
 #include <unordered_set>
+#include "imgui_canvas.h"
 #define MAX_NODES 1024*1024
 #define MAX_CONNECTIONS_PER_NODE 3
 #define NULL_INDEX UINT_MAX
@@ -13,6 +14,7 @@ enum class Operation {
 	Subtract,
 	Multiply,
 	Divide,
+	Power,
 	None,
 };
 
@@ -35,19 +37,6 @@ public:
 		m_operation(operation),
 		m_child1(parent1),
 		m_child2(parent2) {};
-
-	friend Value operator+(Value& lhs, Value& rhs) {
-		return Value(lhs.m_value + rhs.m_value, Operation::Add, lhs.m_index, rhs.m_index);
-	}
-	friend Value operator-(Value& lhs, Value& rhs) {
-		return Value(lhs.m_value + rhs.m_value, Operation::Add, lhs.m_index, rhs.m_index);
-	}
-	friend Value operator*(Value& lhs, Value& rhs) {
-		return Value(lhs.m_value * rhs.m_value, Operation::Multiply, lhs.m_index, rhs.m_index);
-	}
-	friend Value operator/(Value& lhs, Value& rhs) {
-		return Value(lhs.m_value / rhs.m_value, Operation::Divide, lhs.m_index, rhs.m_index);
-	}
 
 	vector<Index> get_topological_sorted_descendants(Value* values) {
 		unordered_set<Index> visited;
@@ -89,6 +78,10 @@ public:
 			if (m_child1 != NULL_INDEX && m_child2 != NULL_INDEX)
 				m_value = values[m_child1].m_value / values[m_child2].m_value;
 			break;
+		case Operation::Power:
+			if (m_child1 != NULL_INDEX && m_child2 != NULL_INDEX)
+				m_value = pow(values[m_child1].m_value, values[m_child2].m_value);
+			break;
 		default:
 			//assert((false && "Unknown operation"));
 			break;
@@ -112,6 +105,10 @@ public:
 		case Operation::Divide:
 			values[m_child1].m_gradient += m_gradient / values[m_child2].m_value;
 			values[m_child2].m_gradient -= m_gradient * values[m_child1].m_value / (values[m_child2].m_value * values[m_child2].m_value);
+			break;
+		case Operation::Power:
+			values[m_child1].m_gradient += m_gradient * values[m_child2].m_value * pow(values[m_child1].m_value, values[m_child2].m_value - 1);
+			values[m_child2].m_gradient += m_gradient * pow(values[m_child1].m_value, values[m_child2].m_value) * log(values[m_child1].m_value);
 			break;
 		default:
 			//assert((false && "Unknown operation"));
@@ -249,203 +246,212 @@ void show_graph_editor(bool* open) {
 
 	// The node editor window
 
-	ImGui::Begin("Graph Editor", open, flags);
+	if (*open) {
+		if (ImGui::Begin("Graph Editor", open, flags)) {
 
-	ImNodes::BeginNodeEditor();
+			ImNodes::BeginNodeEditor();
+			for (int i = 0; i < MAX_NODES; i++) {
+				if (used[i]) {
+
+					const float node_width = 70.0f;
+
+					if (i == s_current_backwards_node) {
+						ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(191, 109, 11, 255));
+						ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(194, 126, 45, 255));
+						ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(204, 148, 81, 255));
+					}
+
+					if (values[i].m_operation == Operation::None)
+					{
+						ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(0x69, 0x0f, 0x62, 255));
+						ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(0x8b, 0x26, 0x84, 255));
+						ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(0x94, 0x2e, 0x8c, 255));
+					}
+
+					ImNodes::BeginNode(i);
+
+					ImNodes::BeginNodeTitleBar();
+					switch (values[i].m_operation) {
+					case Operation::Add:
+						ImGui::TextUnformatted("add");
+						break;
+					case Operation::Subtract:
+						ImGui::TextUnformatted("sub");
+						break;
+					case Operation::Multiply:
+						ImGui::TextUnformatted("mul");
+						break;
+					case Operation::Divide:
+						ImGui::TextUnformatted("div");
+						break;
+					case Operation::Power:
+						ImGui::TextUnformatted("pow");
+						break;
+					default:
+						ImGui::TextUnformatted("value");
+					}
+					ImNodes::EndNodeTitleBar();
+					unsigned attribute_index = i * MAX_CONNECTIONS_PER_NODE;
+
+					{
+						if (values[i].m_operation == Operation::None)
+						{
+							const float label_width = ImGui::CalcTextSize("value").x;
+
+							ImGui::PushItemWidth(node_width - label_width);
+							ImGui::DragFloat(
+								"##hidelabel", &values[i].m_value, 0.01f);
+							ImGui::PopItemWidth();
+						}
+						else
+						{
+							ImNodes::BeginInputAttribute(attribute_index);
+							char text[128];
+							sprintf(text, "%.1f", values[i].m_value);
+
+							const float label_width = ImGui::CalcTextSize(text).x;
+							ImGui::Indent(node_width - label_width);
+							ImGui::Text(text, values[i].m_gradient);
+							ImNodes::EndInputAttribute();
+						}
+					}
+
+					if (values[i].m_operation == Operation::None)
+					{
+						char text[128];
+						sprintf(text, "grad %.1f", values[i].m_gradient);
+
+						const float label_width = ImGui::CalcTextSize(text).x;
+						ImGui::Indent(node_width - label_width);
+						ImGui::Text(text, values[i].m_gradient);
+					}
+					else
+					{
+						ImNodes::BeginInputAttribute(attribute_index + 1);
+
+						char text[128];
+						sprintf(text, "grad %.1f", values[i].m_gradient);
+
+						const float label_width = ImGui::CalcTextSize(text).x;
+						ImGui::Indent(node_width - label_width);
+						ImGui::Text(text, values[i].m_gradient);
+						ImNodes::EndInputAttribute();
+
+					}
+					ImNodes::BeginOutputAttribute(attribute_index + 2);
+					ImNodes::EndOutputAttribute();
+
+					if (i == s_current_backwards_node || values[i].m_operation == Operation::None) {
+						ImNodes::PopColorStyle();
+						ImNodes::PopColorStyle();
+						ImNodes::PopColorStyle();
+					}
+
+					ImNodes::EndNode();
 
 
-	for (int i = 0; i < MAX_NODES; i++) {
-		if (used[i]) {
-
-			const float node_width = 70.0f;
-
-			if (i == s_current_backwards_node) {
-				ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(191, 109, 11, 255));
-				ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(194, 126, 45, 255));
-				ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(204, 148, 81, 255));
-			}
-
-			if (values[i].m_operation == Operation::None)
-			{
-				ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(0x69, 0x0f, 0x62, 255));
-				ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(0x8b, 0x26, 0x84, 255));
-				ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(0x94, 0x2e, 0x8c, 255));
-			}
-
-			ImNodes::BeginNode(i);
-
-			ImNodes::BeginNodeTitleBar();
-			switch (values[i].m_operation) {
-			case Operation::Add:
-				ImGui::TextUnformatted("add");
-				break;
-			case Operation::Subtract:
-				ImGui::TextUnformatted("sub");
-				break;
-			case Operation::Multiply:
-				ImGui::TextUnformatted("mul");
-				break;
-			case Operation::Divide:
-				ImGui::TextUnformatted("div");
-				break;
-			default:
-				ImGui::TextUnformatted("value");
-			}
-			ImNodes::EndNodeTitleBar();
-			unsigned attribute_index = i * MAX_CONNECTIONS_PER_NODE;
-
-			{
-				if (values[i].m_operation == Operation::None)
-				{
-					const float label_width = ImGui::CalcTextSize("value").x;
-
-					ImGui::PushItemWidth(node_width - label_width);
-					ImGui::DragFloat(
-						"##hidelabel", &values[i].m_value, 0.01f);
-					ImGui::PopItemWidth();
+					if (values[i].m_child1 != NULL_INDEX) {
+						ImNodes::Link(i * MAX_CONNECTIONS_PER_NODE, values[i].m_child1 * MAX_CONNECTIONS_PER_NODE + 2, attribute_index);
+					}
+					if (values[i].m_child2 != NULL_INDEX) {
+						ImNodes::Link(i * MAX_CONNECTIONS_PER_NODE + 1, values[i].m_child2 * MAX_CONNECTIONS_PER_NODE + 2, attribute_index + 1);
+					}
 				}
+			}
+
+			ImNodes::EndNodeEditor();
+
+			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
+			const bool open_popup = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+				ImGui::IsMouseReleased(ImGuiMouseButton_Right);
+
+			if (open_popup)
+			{
+				bool hovered = ImNodes::IsNodeHovered(&s_last_node_hovered);
+				if (hovered)
+					ImGui::OpenPopup("node options");
 				else
-				{
-					ImNodes::BeginInputAttribute(attribute_index);
-					char text[128];
-					sprintf(text, "%.1f", values[i].m_value);
+					ImGui::OpenPopup("add node");
+			}
 
-					const float label_width = ImGui::CalcTextSize(text).x;
-					ImGui::Indent(node_width - label_width);
-					ImGui::Text(text, values[i].m_gradient);
-					ImNodes::EndInputAttribute();
+			if (ImGui::BeginPopup("add node"))
+			{
+				const ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+
+				if (ImGui::MenuItem("Creat Value Node")) {
+					Index node = get_new_value();
+					values[node].m_operation = Operation::None;
+					ImNodes::SetNodeScreenSpacePos(node, click_pos);
+				}
+				if (ImGui::MenuItem("Create Add Node")) {
+					Index node = get_new_value();
+					values[node].m_operation = Operation::Add;
+					ImNodes::SetNodeScreenSpacePos(node, click_pos);
+				}
+				if (ImGui::MenuItem("Create Subtract Node")) {
+					Index node = get_new_value();
+					values[node].m_operation = Operation::Subtract;
+					ImNodes::SetNodeScreenSpacePos(node, click_pos);
+				}
+				if (ImGui::MenuItem("Create Multiply Node")) {
+					Index node = get_new_value();
+					values[node].m_operation = Operation::Multiply;
+					ImNodes::SetNodeScreenSpacePos(node, click_pos);
+				}
+				if (ImGui::MenuItem("Create Divide Node")) {
+					Index node = get_new_value();
+					values[node].m_operation = Operation::Divide;
+					ImNodes::SetNodeScreenSpacePos(node, click_pos);
+				}
+				if (ImGui::MenuItem("Create Power Node")) {
+					Index node = get_new_value();
+					values[node].m_operation = Operation::Power;
+					ImNodes::SetNodeScreenSpacePos(node, click_pos);
+				}
+
+				ImGui::EndPopup();
+
+			}
+
+			if (ImGui::BeginPopup("node options"))
+			{
+				const ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+
+				if (ImGui::MenuItem("Backward Pass")) {
+					s_current_backwards_node = s_last_node_hovered;
+				}
+
+				ImGui::EndPopup();
+			}
+
+			int start_attr, end_attr;
+			if (ImNodes::IsLinkCreated(&start_attr, &end_attr))
+			{
+				Index firstNode = start_attr / MAX_CONNECTIONS_PER_NODE;
+				int firstNodeAttr = start_attr % MAX_CONNECTIONS_PER_NODE;
+
+				Index secondNode = end_attr / MAX_CONNECTIONS_PER_NODE;
+				int secondNodeAttr = end_attr % MAX_CONNECTIONS_PER_NODE;
+
+				if (firstNodeAttr == 2 && secondNodeAttr == 0) {
+					values[secondNode].m_child1 = firstNode;
+				}
+				else if (firstNodeAttr == 2 && secondNodeAttr == 1) {
+					values[secondNode].m_child2 = firstNode;
+				}
+				else if (firstNodeAttr == 0 && secondNodeAttr == 2) {
+					values[firstNode].m_child1 = secondNode;
+				}
+				else if (firstNodeAttr == 1 && secondNodeAttr == 2) {
+					values[firstNode].m_child2 = secondNode;
 				}
 			}
 
-			if (values[i].m_operation == Operation::None)
-			{
-				char text[128];
-				sprintf(text, "grad %.1f", values[i].m_gradient);
-
-				const float label_width = ImGui::CalcTextSize(text).x;
-				ImGui::Indent(node_width - label_width);
-				ImGui::Text(text, values[i].m_gradient);
-			}
-			else
-			{
-				ImNodes::BeginInputAttribute(attribute_index + 1);
-
-				char text[128];
-				sprintf(text, "grad %.1f", values[i].m_gradient);
-
-				const float label_width = ImGui::CalcTextSize(text).x;
-				ImGui::Indent(node_width - label_width);
-				ImGui::Text(text, values[i].m_gradient);
-				ImNodes::EndInputAttribute();
-				
-			}
-			ImNodes::BeginOutputAttribute(attribute_index + 2);
-			ImNodes::EndOutputAttribute();
-
-			if (i == s_current_backwards_node || values[i].m_operation == Operation::None) {
-				ImNodes::PopColorStyle();
-				ImNodes::PopColorStyle();
-				ImNodes::PopColorStyle();
-			}
-
-			ImNodes::EndNode();
+			ImGui::PopStyleVar();
 
 
-			if (values[i].m_child1 != NULL_INDEX) {
-				ImNodes::Link(i * MAX_CONNECTIONS_PER_NODE, values[i].m_child1 * MAX_CONNECTIONS_PER_NODE + 2, attribute_index);
-			}
-			if (values[i].m_child2 != NULL_INDEX) {
-				ImNodes::Link(i * MAX_CONNECTIONS_PER_NODE + 1, values[i].m_child2 * MAX_CONNECTIONS_PER_NODE + 2, attribute_index + 1);
-			}
 		}
+		ImGui::End();
 	}
-
-	ImNodes::EndNodeEditor();
-
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
-	const bool open_popup = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
-			ImGui::IsMouseReleased(ImGuiMouseButton_Right);
-
-	if (open_popup)
-	{
-		bool hovered = ImNodes::IsNodeHovered(&s_last_node_hovered);
-		if (hovered)
-			ImGui::OpenPopup("node options");
-		else
-			ImGui::OpenPopup("add node");
-	}
-
-	if (ImGui::BeginPopup("add node"))
-	{
-		const ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
-
-		if (ImGui::MenuItem("Creat Value Node")) {
-			Index node = get_new_value();
-			values[node].m_operation = Operation::None;
-			ImNodes::SetNodeScreenSpacePos(node, click_pos);
-		}
-		if (ImGui::MenuItem("Create Add Node")) {
-			Index node = get_new_value();
-			values[node].m_operation = Operation::Add;
-			ImNodes::SetNodeScreenSpacePos(node, click_pos);
-		}
-		if (ImGui::MenuItem("Create Subtract Node")) {
-			Index node = get_new_value();
-			values[node].m_operation = Operation::Subtract;
-			ImNodes::SetNodeScreenSpacePos(node, click_pos);
-		}
-		if (ImGui::MenuItem("Create Multiply Node")) {
-			Index node = get_new_value();
-			values[node].m_operation = Operation::Multiply;
-			ImNodes::SetNodeScreenSpacePos(node, click_pos);
-		}
-		if (ImGui::MenuItem("Create Divide Node")) {
-			Index node = get_new_value();
-			values[node].m_operation = Operation::Divide;
-			ImNodes::SetNodeScreenSpacePos(node, click_pos);
-		}
-
-		ImGui::EndPopup();
-
-	}
-
-	if (ImGui::BeginPopup("node options"))
-	{
-		const ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
-
-		if (ImGui::MenuItem("Backward Pass")) {
-			s_current_backwards_node = s_last_node_hovered;
-		}
-
-		ImGui::EndPopup();
-	}
-
-	int start_attr, end_attr;
-	if (ImNodes::IsLinkCreated(&start_attr, &end_attr))
-	{
-		Index firstNode = start_attr/MAX_CONNECTIONS_PER_NODE;
-		int firstNodeAttr = start_attr%MAX_CONNECTIONS_PER_NODE;
-
-		Index secondNode = end_attr/MAX_CONNECTIONS_PER_NODE;
-		int secondNodeAttr = end_attr%MAX_CONNECTIONS_PER_NODE;
-
-		if (firstNodeAttr == 2 && secondNodeAttr == 0) {
-			values[secondNode].m_child1 = firstNode;
-		}
-		else if (firstNodeAttr == 2 && secondNodeAttr == 1) {
-			values[secondNode].m_child2 = firstNode;
-		}
-		else if (firstNodeAttr == 0 && secondNodeAttr == 2) {
-			values[firstNode].m_child1 = secondNode;
-		}
-		else if (firstNodeAttr == 1 && secondNodeAttr == 2) {
-			values[firstNode].m_child2 = secondNode;
-		}
-	}
-
-	ImGui::PopStyleVar();
-
-
-	ImGui::End();
 
 }

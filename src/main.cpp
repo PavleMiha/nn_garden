@@ -10,6 +10,7 @@
 #include <imnodes.h>
 #include "node_editor.h"
 #include "graph_editor.h"
+#include "imgui_canvas.h"
 
 class NNGarden : public bigg::Application
 {
