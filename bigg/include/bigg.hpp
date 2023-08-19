@@ -4,6 +4,7 @@
 
 #pragma once
 
+#define IMGUI_DISABLE_OBSOLETE_KEYIO
 #include <bgfx/bgfx.h>
 #include <imgui.h>
 #include <GLFW/glfw3.h>
@@ -39,6 +40,7 @@ namespace bigg
 	// application
 	class Application
 	{
+		static void updateKeyModifiers(GLFWwindow* window);
 		static void keyCallback( GLFWwindow* window, int key, int scancode, int action, int mods );
 		static void charCallback( GLFWwindow* window, unsigned int codepoint );
 		static void charModsCallback( GLFWwindow* window, unsigned int codepoint, int mods );

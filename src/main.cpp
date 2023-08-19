@@ -3,11 +3,13 @@
  *
  * This is free and unencumbered software released into the public domain. 
  */
+#define IMGUI_DEFINE_MATH_OPERATORS
+
 
 #include "bigg.hpp"
 #include "value.h"
-#include "imgui.h"
 #include <imnodes.h>
+#include "imgui.h"
 #include "node_editor.h"
 #include "graph_editor.h"
 #include "imgui_canvas.h"
@@ -17,7 +19,6 @@ class NNGarden : public bigg::Application
 	void initialize(int _argc, char** _argv) {
 		ImNodes::CreateContext();
 		example::NodeEditorInitialize();
-		start_test_net();
 	}
 	void onReset() {
 		bgfx::setViewClear( 0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303841ff, 1.0f, 0 );
@@ -52,16 +53,17 @@ class NNGarden : public bigg::Application
 		ImGui::EndMainMenuBar();
 		ImGui::DockSpaceOverViewport();
 
+		//example::NodeEditorShow(dt, &graph_open);
+
 		show_graph_editor(&graph_open);
+		
 
 		// Rendering
 		//ImGui::Render();
-		if (perf_open)
-		{
+		if (perf_open) {
 			ImGui::Begin("Performance", &perf_open);
 			ImGui::Text("%.1f", ImGui::GetIO().Framerate);
 			ImGui::End();
-
 		}
 		if (demo_open)
 			ImGui::ShowDemoWindow(&demo_open);

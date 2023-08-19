@@ -1,12 +1,16 @@
 #pragma once
 
 #define IMGUI_DEFINE_MATH_OPERATORS
+
 #include "imnodes.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>
 
+#include <assert.h>
 #include <limits.h>
+
+#include <unordered_map>
 
 // the structure of this file:
 //
@@ -100,7 +104,7 @@ struct ImOptionalIndex
 
     inline int Value() const
     {
-        IM_ASSERT(HasValue());
+        assert(HasValue());
         return _Index;
     }
 
@@ -131,7 +135,7 @@ private:
 struct ImNodeData
 {
     int    Id;
-    ImVec2 Origin; // The node origin is in editor space
+    ImVec2 Origin; // The node origin is in grid space
     ImRect TitleBarContentRect;
     ImRect Rect;
 
@@ -152,7 +156,7 @@ struct ImNodeData
     bool          Draggable;
 
     ImNodeData(const int node_id)
-        : Id(node_id), Origin(0.0f, 0.0f), TitleBarContentRect(),
+        : Id(node_id), Origin(100.0f, 100.0f), TitleBarContentRect(),
           Rect(ImVec2(0.0f, 0.0f), ImVec2(0.0f, 0.0f)), ColorStyle(), LayoutStyle(), PinIndices(),
           Draggable(true)
     {
@@ -241,6 +245,15 @@ struct ImNodesStyleVarElement
     }
 };
 
+// Struct for backing up ImGui's mouse state
+struct ImGuiMouseState
+{
+    ImVec2 MousePos;
+    ImVec2 MouseDelta;
+    ImVec2 MousePosPrev;
+    ImVec2 MouseClickedPos[5];
+};
+
 // [SECTION] global and editor context structs
 
 struct ImNodesEditorContext
@@ -252,19 +265,24 @@ struct ImNodesEditorContext
     ImVector<int> NodeDepthOrder;
 
     // ui related fields
-    ImVec2 Panning;
-    ImVec2 AutoPanningDelta;
+    ImVec2 Panning; // In grid space
+    ImVec2 AutoPanningDelta; // In grid space
+    float  Zoom;
+    ImRect VisibleGridRect; // In grid space
     // Minimum and maximum extents of all content in grid space. Valid after final
     // ImNodes::EndNode() call.
     ImRect GridContentBounds;
 
+    ImGuiMouseState MouseInScreenSpace;
+    ImGuiMouseState MouseInGridSpace;
+
     ImVector<int> SelectedNodeIndices;
     ImVector<int> SelectedLinkIndices;
 
-    // Relative origins of selected nodes for snapping of dragged nodes
-    ImVector<ImVec2> SelectedNodeOffsets;
-    // Offset of the primary node origin relative to the mouse cursor.
-    ImVec2           PrimaryNodeOffset;
+    std::unordered_map<int, ImVec2> MovedNodes;
+    ImVector<int> MovedNodeIds;
+    ImVector<ImVec2> MovedNodeDeltas;
+
 
     ImClickInteractionState ClickInteraction;
 
@@ -276,18 +294,18 @@ struct ImNodesEditorContext
     ImNodesMiniMapNodeHoveringCallback         MiniMapNodeHoveringCallback;
     ImNodesMiniMapNodeHoveringCallbackUserData MiniMapNodeHoveringCallbackUserData;
 
-    // Mini-map state set during EndNodeEditor() call
+    // Mini-map state set during EndNodeEditor() call after CalcMiniMapLayout()
 
+    bool MiniMapMouseIsHovering;
     ImRect MiniMapRectScreenSpace;
     ImRect MiniMapContentScreenSpace;
     float  MiniMapScaling;
 
     ImNodesEditorContext()
-        : Nodes(), Pins(), Links(), Panning(0.f, 0.f), SelectedNodeIndices(), SelectedLinkIndices(),
-          SelectedNodeOffsets(), PrimaryNodeOffset(0.f, 0.f), ClickInteraction(),
-          MiniMapEnabled(false), MiniMapSizeFraction(0.0f),
-          MiniMapNodeHoveringCallback(NULL), MiniMapNodeHoveringCallbackUserData(NULL),
-          MiniMapScaling(0.0f)
+        : Nodes(), Pins(), Links(), Panning(0.f, 0.f), Zoom(1.0f), SelectedNodeIndices(),
+          SelectedLinkIndices(), ClickInteraction(), MiniMapEnabled(false),
+          MiniMapSizeFraction(0.0f), MiniMapNodeHoveringCallback(NULL),
+          MiniMapNodeHoveringCallbackUserData(NULL), MiniMapScaling(0.0f)
     {
     }
 };
@@ -305,7 +323,6 @@ struct ImNodesContext
     ImVector<int> OccludedPinIndices;
 
     // Canvas extents
-    ImVec2 CanvasOriginScreenSpace;
     ImRect CanvasRectScreenSpace;
 
     // Debug helpers
@@ -351,15 +368,19 @@ struct ImNodesContext
     bool  LeftMouseDragging;
     bool  AltMouseDragging;
     float AltMouseScrollDelta;
-    bool  MultipleSelectModifier;
 };
 
 namespace IMNODES_NAMESPACE
 {
+
+void GetImGuiMouseState(ImGuiMouseState* state);
+void SetImGuiMouseState(const ImGuiMouseState& state);
+void TransformImGuiMouseStateToGridSpace(const ImNodesEditorContext& editor, ImGuiMouseState* state);
+
 static inline ImNodesEditorContext& EditorContextGet()
 {
     // No editor context was set! Did you forget to call ImNodes::CreateContext()?
-    IM_ASSERT(GImNodes->EditorCtx != NULL);
+    assert(GImNodes->EditorCtx != NULL);
     return *GImNodes->EditorCtx;
 }
 
@@ -407,7 +428,7 @@ inline void ObjectPoolUpdate(ImObjectPool<ImNodeData>& nodes)
                 // unused
                 ImVector<int>&   depth_stack = EditorContextGet().NodeDepthOrder;
                 const int* const elem = depth_stack.find(i);
-                IM_ASSERT(elem != depth_stack.end());
+                assert(elem != depth_stack.end());
                 depth_stack.erase(elem);
 
                 nodes.IdMap.SetInt(id, -1);
