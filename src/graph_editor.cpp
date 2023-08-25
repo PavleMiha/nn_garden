@@ -22,9 +22,10 @@ typedef unsigned Index;
 
 struct Connection {
 public:
-	Connection() : index(NULL_INDEX), slot(0) {};
+	Connection() : index(NULL_INDEX), input_slot(0), output_slot(0) {};
 	Index index { NULL_INDEX };
-	unsigned short slot{ 0 };
+	unsigned short input_slot{ 0 };
+	unsigned short output_slot{ 0 };
 };
 
 class Value {
@@ -198,21 +199,21 @@ enum class EditOperationType {
 
 class EditOperation {
 public:
-	EditOperationType		   m_type;
-	vector<Value>			   m_values;
-	vector<Index>			   m_indices;
-	vector<vector<Connection>> m_connections;
-	vector<ImVec2>			   m_positions;
-	ImVec2					   m_pos_delta;
+	EditOperationType m_type;
+	Value			  m_value;
+	Index			  m_index;
+	Connection		  m_connection;
+	ImVec2			  m_position;
+	ImVec2			  m_pos_delta;
+	bool			  m_final;
 
 	void EditOperation::apply(Context* context);
 	void EditOperation::undo(Context* context);
-	static EditOperation add_single_node(const Value& value, const ImVec2 pos);
-	static EditOperation add_nodes(const vector<Value>& values, const vector<ImVec2>& pos);
-	static EditOperation remove_nodes(const vector<Index>& indices);
-	static EditOperation add_link(const vector<Connection>& connections);
-	static EditOperation remove_link(const vector<Connection>& connections);
-	static EditOperation move_nodes(const vector<Index>& indices, const ImVec2& delta);
+	static EditOperation add_node(const Value& value, const ImVec2& pos);
+	static EditOperation remove_node(const Index index);
+	static EditOperation add_link(const Connection& connection, const Index index);
+	static EditOperation remove_link(const Connection& connection, const Index index);
+	static EditOperation move_node(const Index index, const ImVec2& delta);
 };
 
 
@@ -330,12 +331,19 @@ public:
 			selected_nodes = new int[num_nodes_selected];
 			ImNodes::GetSelectedNodes(selected_nodes);
 
-			vector<Index> selected_node_indices = vector<Index>();
 			for (int i = 0; i < num_nodes_selected; i++) {
-				selected_node_indices.push_back(selected_nodes[i]);
+				for (int j = 0; j < values[selected_nodes[i]].m_inputs.size(); j++) {
+					EditOperation op = EditOperation::remove_link(values[selected_nodes[i]].m_inputs[j], selected_nodes[i]);
+					apply_operation(op);
+				}
 			}
-			EditOperation op = EditOperation::remove_nodes(selected_node_indices);
-			apply_operation(op);
+
+			for (int i = 0; i < num_nodes_selected; i++) {
+				EditOperation op = EditOperation::remove_node(selected_nodes[i]);
+				if (i == num_nodes_selected - 1)
+					op.m_final = true;
+				apply_operation(op);
+			}
 		}
 	}
 
@@ -590,33 +598,33 @@ public:
 
 					if (ImGui::MenuItem("Create Value Node")) {
 						Value value = Value::make_value();
-						EditOperation edit_operation = EditOperation::add_single_node(value, click_pos);
+						EditOperation edit_operation = EditOperation::add_node(value, click_pos);
 						apply_operation(edit_operation);
 					}
 					ImGui::Separator();
 					if (ImGui::MenuItem("Create Add Node")) {
 						Value value = Value::make_add();
-						EditOperation edit_operation = EditOperation::add_single_node(value, click_pos);
+						EditOperation edit_operation = EditOperation::add_node(value, click_pos);
 						apply_operation(edit_operation);
 					}
 					if (ImGui::MenuItem("Create Subtract Node")) {
 						Value value = Value::make_subtract();
-						EditOperation edit_operation = EditOperation::add_single_node(value, click_pos);
+						EditOperation edit_operation = EditOperation::add_node(value, click_pos);
 						apply_operation(edit_operation);
 					}
 					if (ImGui::MenuItem("Create Multiply Node")) {
 						Value value = Value::make_multiply();
-						EditOperation edit_operation = EditOperation::add_single_node(value, click_pos);
+						EditOperation edit_operation = EditOperation::add_node(value, click_pos);
 						apply_operation(edit_operation);
 					}
 					if (ImGui::MenuItem("Create Divide Node")) {
 						Value value = Value::make_divide();
-						EditOperation edit_operation = EditOperation::add_single_node(value, click_pos);
+						EditOperation edit_operation = EditOperation::add_node(value, click_pos);
 						apply_operation(edit_operation);
 					}
 					if (ImGui::MenuItem("Create Power Node")) {
 						Value value = Value::make_power();
-						EditOperation edit_operation = EditOperation::add_single_node(value, click_pos);
+						EditOperation edit_operation = EditOperation::add_node(value, click_pos);
 						apply_operation(edit_operation);
 					}
 
@@ -637,9 +645,7 @@ public:
 					}
 
 					if (ImGui::MenuItem("Delete Node")) {
-						vector<Index> selected_node_indices = vector<Index>();
-						selected_node_indices.push_back(last_node_hovered);
-						EditOperation op = EditOperation::remove_nodes(selected_node_indices);
+						EditOperation op = EditOperation::remove_node(last_node_hovered);
 						apply_operation(op);
 					}
 
@@ -668,16 +674,32 @@ public:
 					int secondNodeAttr = end_attr % MAX_CONNECTIONS_PER_NODE;
 
 					if (firstNodeAttr == 2 && secondNodeAttr == 0) {
-						//s_values[secondNode].m_inputs[0].index = firstNode;
+						Connection connection = Connection();
+						connection.index = firstNode;
+						connection.input_slot = 0;
+						connection.output_slot = 0;
+						apply_operation(EditOperation::add_link(connection, secondNode));
 					}
 					else if (firstNodeAttr == 2 && secondNodeAttr == 1) {
-						//s_values[secondNode].m_inputs[1].index = firstNode;
+						Connection connection = Connection();
+						connection.index = firstNode;
+						connection.input_slot = 1;
+						connection.output_slot = 0;
+						apply_operation(EditOperation::add_link(connection, secondNode));
 					}
 					else if (firstNodeAttr == 0 && secondNodeAttr == 2) {
-						//s_values[firstNode].m_inputs[0].index = secondNode;
+						Connection connection = Connection();
+						connection.index = secondNode;
+						connection.input_slot = 0;
+						connection.output_slot = 0;
+						apply_operation(EditOperation::add_link(connection, firstNode));
 					}
 					else if (firstNodeAttr == 1 && secondNodeAttr == 2) {
-						//s_values[firstNode].m_inputs[1].index = secondNode;
+						Connection connection = Connection();
+						connection.index = secondNode;
+						connection.input_slot = 1;
+						connection.output_slot = 0;
+						apply_operation(EditOperation::add_link(connection, firstNode));
 					}
 				}
 
@@ -694,44 +716,32 @@ public:
 void EditOperation::apply(Context* context) {
 	switch (m_type) {
 	case EditOperationType::AddNode:
-		for (int i = 0; i < m_values.size(); i++) {
-			Index index = m_values[i].m_index;
+		{
+			Index index = m_value.m_index;
 			if (index == NULL_INDEX)
 				index = context->get_new_value();
-			context->values[index] = m_values[i];
+			context->values[index] = m_value;
 			context->values[index].m_index = index;
-			m_values[i].m_index = index;
-			ImNodes::SetNodeGridSpacePos(index, m_positions[i]);
+			m_value.m_index = index;
+			m_index = index;
+			ImNodes::SetNodeGridSpacePos(index, m_position);
 		}
 		break;
 	case EditOperationType::RemoveNode:
-		for (auto& it : m_indices) {
-			m_connections.push_back(vector<Connection>());
-			m_values.push_back(context->values[it]);
-			m_positions.push_back(ImNodes::GetNodeGridSpacePos(it));
-			context->delete_value_and_return_removed_connections(it, m_connections.back());
-		}
+		m_value = context->values[m_index];
+		m_position = ImNodes::GetNodeGridSpacePos(m_index);
+		context->values[m_index] = Value();
 		break;
 	case EditOperationType::AddLink:
-		for (int i = 0; i < m_indices.size(); i++) {
-			context->values[m_indices[i]].m_inputs.push_back(m_connections[0][i]);
-		}
+		if (context->values[m_index].m_inputs.size() < m_connection.input_slot + 1)
+			context->values[m_index].m_inputs.resize(m_connection.input_slot + 1);
+		context->values[m_index].m_inputs[m_connection.input_slot].index = m_connection.index;
 		break;
 	case EditOperationType::RemoveLink:
-		for (int i = 0; i < m_indices.size(); i++) {
-			for (int j = 0; j < m_values[i].m_inputs.size(); j++) {
-				if (m_values[i].m_inputs[j].index == m_connections[0][i].index &&
-					m_values[i].m_inputs[j].slot == m_connections[0][i].slot) {
-					m_values[i].m_inputs.erase(m_values[i].m_inputs.begin() + j);
-					break;
-				}
-			}
-		}
+		context->values[m_index].m_inputs[m_connection.input_slot].index = NULL_INDEX;
 		break;
 	case EditOperationType::MoveNodes:
-		for (auto& it : m_indices) {
-			ImNodes::SetNodeGridSpacePos(it, ImNodes::GetNodeGridSpacePos(it) + m_pos_delta);
-		}
+		ImNodes::SetNodeGridSpacePos(m_index, ImNodes::GetNodeGridSpacePos(m_index) + m_pos_delta);
 		break;
 	default:
 		break;
@@ -741,88 +751,72 @@ void EditOperation::apply(Context* context) {
 void EditOperation::undo(Context* context) {
 	switch (m_type) {
 	case EditOperationType::AddNode:
-		for (auto& it : m_values) {
-			m_connections.push_back(vector<Connection>());
-			context->delete_value_and_return_removed_connections(it.m_index, m_connections[0]);
-		}
+		context->values[m_index] = Value();
 		break;
 	case EditOperationType::RemoveNode:
-		for (int i = 0; i < m_indices.size(); i++) {
-			context->values[m_indices[i]] = m_values[i];
-			ImNodes::SetNodeGridSpacePos(m_indices[i], m_positions[i]);
+		{
+			Index index = m_value.m_index;
+			context->values[index] = m_value;
+			context->values[index].m_index = index;
+			m_value.m_index = index;
+			ImNodes::SetNodeGridSpacePos(index, m_position);
 		}
 		break;
 	case EditOperationType::AddLink:
-		for (int i = 0; i < m_indices.size(); i++) {
-			for (int j = 0; j < m_values[i].m_inputs.size(); j++) {
-				if (m_values[i].m_inputs[j].index == m_connections[0][i].index &&
-					m_values[i].m_inputs[j].slot == m_connections[0][i].slot) {
-					m_values[i].m_inputs.erase(m_values[i].m_inputs.begin() + j);
-					break;
-				}
-			}
-		}
+		context->values[m_index].m_inputs[m_connection.input_slot].index = NULL_INDEX;
 		break;
 	case EditOperationType::RemoveLink:
-		for (int i = 0; i < m_indices.size(); i++) {
-			context->values[m_indices[i]].m_inputs.push_back(m_connections[0][i]);
-		}
+		if(context->values[m_index].m_inputs.size() < m_connection.input_slot + 1)
+			context->values[m_index].m_inputs.resize(m_connection.input_slot + 1);
+		context->values[m_index].m_inputs[m_connection.input_slot].index = m_connection.index;
 		break;
 	case EditOperationType::MoveNodes:
-		for (auto& it : m_indices) {
-			ImNodes::SetNodeGridSpacePos(it, ImNodes::GetNodeGridSpacePos(it) - m_pos_delta);
-		}
+		ImNodes::SetNodeGridSpacePos(m_index, ImNodes::GetNodeGridSpacePos(m_index) + m_pos_delta);
 		break;
 	}
 }
 
-EditOperation EditOperation::add_single_node(const Value& value, const ImVec2 pos) {
+EditOperation EditOperation::add_node(const Value& value, const ImVec2& pos) {
 	EditOperation op;
 	op.m_type = EditOperationType::AddNode;
-	op.m_values.push_back(value);
-	op.m_positions.push_back(pos);
+	op.m_value = value;
+	op.m_position = pos;
 	return op;
 }
 
-EditOperation EditOperation::add_nodes(const vector<Value>& values, const vector<ImVec2>& pos) {
-	EditOperation op;
-	op.m_type = EditOperationType::AddNode;
-	op.m_values = values;
-	op.m_positions.insert(op.m_positions.end(), pos.begin(), pos.end());
-	return op;
-}
-
-EditOperation EditOperation::remove_nodes(const vector<Index>& indices) {
+EditOperation EditOperation::remove_node(const Index index) {
 	EditOperation op;
 	op.m_type = EditOperationType::RemoveNode;
-	op.m_indices = indices;
+	op.m_index = index;
 	return op;
 }
 
-EditOperation EditOperation::add_link(const vector<Connection>& connections) {
+EditOperation EditOperation::add_link(const Connection& connection, 
+									  const Index index) {
 	EditOperation op;
 	op.m_type = EditOperationType::AddLink;
-	op.m_connections.push_back(connections);
+	op.m_index = index;
+	op.m_connection = connection;
 	return op;
 }
 
-EditOperation EditOperation::remove_link(const vector<Connection>& connections) {
+EditOperation EditOperation::remove_link(const Connection& connection,
+										 const Index index) {
 	EditOperation op;
 	op.m_type = EditOperationType::RemoveLink;
-	op.m_connections.push_back(connections);
+	op.m_connection = connection;
 	return op;
 }
 
-EditOperation EditOperation::move_nodes(const vector<Index>& indices, const ImVec2& delta) {
+EditOperation EditOperation::move_node(const Index index, const ImVec2& delta) {
 	EditOperation op;
 	op.m_type = EditOperationType::MoveNodes;
-	op.m_indices = indices;
+	op.m_index = index;
 	op.m_pos_delta = delta;
 	return op;
 }
 
 Context s_context;
-
 
 void show_graph_editor(bool* open) {
 	s_context.show(open);
