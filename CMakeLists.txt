@@ -11,7 +11,7 @@ include( deps/bgfx.cmake/cmake/util/ConfigureDebugging.cmake )
 
 add_library( bigg STATIC bigg/src/bigg.cpp bigg/src/bigg_assets.h bigg/src/bigg_imgui.hpp bigg/src/bigg_shaders.hpp bigg/include/bigg.hpp )
 
-target_link_libraries( bigg PUBLIC bgfx imgui glfw glm )
+target_link_libraries( bigg PUBLIC bgfx imgui glfw glm clip )
 target_include_directories( bigg PUBLIC bigg/include )
 
 set(SOURCE_FILES
@@ -29,10 +29,9 @@ set(HEADER_FILES
 	include/node_editor.h
 	include/graph.h
 	include/graph_editor.h
-	include/imgui_canvas.h
-)
+	include/json.hpp)
 
-include_directories(include deps/imgui)
+include_directories(include deps/imgui deps/clip)
 
 add_executable( nn_garden ${SOURCE_FILES} ${HEADER_FILES} src/main.cpp)
 

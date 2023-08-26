@@ -35,10 +35,17 @@ class NNGarden : public bigg::Application
 
 		if (ImGui::BeginMenu("File"))
 		{
-			ImGui::MenuItem("New");
-			ImGui::MenuItem("Create");
+			if (ImGui::MenuItem("Save")) {
+				save("graph.json");
+			}
+
+			if (ImGui::MenuItem("Load")) {
+				load("graph.json");
+			}
+
 			ImGui::EndMenu();
 		}
+
 		if (ImGui::BeginMenu("Window"))
 		{
 			ImGui::MenuItem("Graph Window", "", &graph_open);
@@ -51,6 +58,12 @@ class NNGarden : public bigg::Application
 		}
 
 		ImGui::EndMainMenuBar();
+
+		if (ImGui::BeginPopup("SavePopup", ImGuiWindowFlags_MenuBar)) {
+			ImGui::Text("Save");
+			ImGui::EndPopup();
+		}
+
 		ImGui::DockSpaceOverViewport();
 
 		//example::NodeEditorShow(dt, &graph_open);

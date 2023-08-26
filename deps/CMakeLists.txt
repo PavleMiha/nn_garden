@@ -19,3 +19,8 @@ add_subdirectory( glm )
 
 # imgui
 include( imgui.cmake )
+
+# clip
+set( CLIP_EXAMPLES      OFF CACHE INTERNAL "" )
+set( CLIP_TESTS    		OFF CACHE INTERNAL "" )
+add_subdirectory( clip )

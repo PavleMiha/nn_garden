@@ -45,6 +45,7 @@ static void imguiInit( GLFWwindow* window )
 	// Setup back-end capabilities flags
 	io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
 	io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
+	io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
 
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 

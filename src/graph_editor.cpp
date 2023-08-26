@@ -2,7 +2,10 @@
 #include <imgui.h>
 #include <vector>
 #include <unordered_set>
-#include "imgui_canvas.h"
+#include <iostream>
+#include "clip.h"
+#include "json.hpp"
+
 #define MAX_NODES 1024*1024
 #define MAX_CONNECTIONS_PER_NODE 3
 #define NULL_INDEX UINT_MAX
@@ -30,15 +33,43 @@ public:
 
 class Value {
 public:
-	Index     m_index{ NULL_INDEX };
-	float	  m_value{ 0.f };
-	float	  m_gradient{ 0.f };
-	Operation m_operation{ Operation::None };
+	Index			   m_index{ NULL_INDEX };
+	float			   m_value{ 0.f };
+	float			   m_gradient{ 0.f };
+	Operation		   m_operation{ Operation::None };
 	vector<Connection> m_inputs;
+
+	nlohmann::json to_json() {
+		nlohmann::json j;
+		j["index"]	   = m_index;
+		j["value"]	   = m_value;
+		j["gradient"]  = m_gradient;
+		j["operation"] = m_operation;
+		for (int i = 0; i < m_inputs.size(); i++) {
+			j["inputs"][i]["index"]		  = m_inputs[i].index;
+			j["inputs"][i]["input_slot"]  = m_inputs[i].input_slot;
+			j["inputs"][i]["output_slot"] = m_inputs[i].output_slot;
+		}
+		return j;
+	}
+
+	void from_json(nlohmann::json j) {
+		m_index	   = j["index"];
+		m_value	   = j["value"];
+		m_gradient = j["gradient"];
+		m_operation = j["operation"];
+		for (int i = 0; i < j["inputs"].size(); i++) {
+			int slot = j["inputs"][i]["input_slot"];
+			if (slot + 1 > m_inputs.size())
+				m_inputs.resize(slot + 1);
+			m_inputs[slot].index	   = j["inputs"][i]["index"];
+			m_inputs[slot].input_slot  = j["inputs"][i]["input_slot"];
+			m_inputs[slot].output_slot = j["inputs"][i]["output_slot"];
+		}
+	}
 
 	Value() {};
 	Value(float value) : m_value(value) {};
-
 	Value(float value, Operation operation, Index parent1, Index parent2) :
 		m_value(value),
 		m_operation(operation),
@@ -185,6 +216,7 @@ public:
 		value.m_operation = Operation::Power;
 		return value;
 	}
+
 };
 
 class Context;
@@ -195,6 +227,7 @@ enum class EditOperationType {
 	AddLink,
 	RemoveLink,
 	MoveNodes,
+	SetBackwardsNode
 };
 
 class EditOperation {
@@ -202,6 +235,7 @@ public:
 	EditOperationType m_type;
 	Value			  m_value;
 	Index			  m_index;
+	Index			  m_previousIndex;
 	Connection		  m_connection;
 	ImVec2			  m_position;
 	ImVec2			  m_pos_delta;
@@ -209,11 +243,11 @@ public:
 
 	void EditOperation::apply(Context* context);
 	void EditOperation::undo(Context* context);
-	static EditOperation add_node(const Value& value, const ImVec2& pos);
-	static EditOperation remove_node(const Index index);
-	static EditOperation add_link(const Connection& connection, const Index index);
-	static EditOperation remove_link(const Connection& connection, const Index index);
-	static EditOperation move_node(const Index index, const ImVec2& delta);
+	static EditOperation add_node(const Value& value, const ImVec2& pos, const bool _final = true);
+	static EditOperation remove_node(const Index index, const bool _final = true);
+	static EditOperation add_link(const Connection& connection, const Index index, const bool _final = true);
+	static EditOperation remove_link(const Connection& connection, const Index index, const bool _final = true);
+	static EditOperation move_node(const Index index, const ImVec2& delta, const bool _final = true);
 };
 
 
@@ -227,6 +261,7 @@ public:
 	double time_right_mouse_pressed = 0.;
 	int	  last_node_hovered = -1;
 	bool  show_debug_info_ = false;
+	nlohmann::json clipboard = nlohmann::json::object();
 
 	ImNodesMiniMapLocation minimap_location_;
 
@@ -300,6 +335,57 @@ public:
 		return values[index];
 	}
 
+	void from_json(const nlohmann::json& json, const ImVec2& origin) {
+		if (json["nodes"].size() == 0) {
+			return;
+		}
+
+		std::map<Index, Index> json_index_to_index;
+		for (int i = 0; i < json["nodes"].size(); i++) {
+			Index index = get_new_value();
+			json_index_to_index[json["nodes"][i]["index"]] = index;
+		}
+
+		for (int i = 0; i < json["nodes"].size(); i++) {
+			Index json_index = json["nodes"][i]["index"];
+			Value value;
+			value.from_json(json["nodes"][i]);
+			value.m_index = json_index_to_index[json_index];
+			for (int j = 0; j < value.m_inputs.size(); j++) {
+				if (json_index_to_index.find(value.m_inputs[j].index) == json_index_to_index.end()) {
+					value.m_inputs[j].index = NULL_INDEX;
+				}
+				else {
+					value.m_inputs[j].index = json_index_to_index[value.m_inputs[j].index];
+				}
+			}
+			EditOperation op = EditOperation::add_node(value, origin + ImVec2(json["offsets"][i][0], json["offsets"][i][1]), false);
+			apply_operation(op);
+		}
+
+		edit_operations.back().m_final = true;		
+	}
+
+	nlohmann::json to_json(int* indices, const ImVec2& origin, int num) {
+		int next_json_index = 0;
+		nlohmann::json j;
+		std::map<Index, int> index_to_json_index;
+		for (int i = 0; i < num; i++) {
+			j["nodes"].push_back(values[indices[i]].to_json());
+			ImVec2 pos = ImNodes::GetNodeGridSpacePos(indices[i]);
+			j["offsets"].push_back({ pos.x - origin.x, pos.y - origin.y });
+		}
+		return j;
+	}
+
+	void add_operation_without_applying(EditOperation& operation) {
+		if (current_operation < edit_operations.size()) {
+			edit_operations.resize(current_operation);
+		}
+		edit_operations.push_back(operation);
+		current_operation++;
+	}
+
 	void apply_operation(EditOperation& operation) {
 		if (current_operation < edit_operations.size()) {
 			edit_operations.resize(current_operation);
@@ -311,15 +397,41 @@ public:
 
 	void undo() {
 		if (current_operation > 0) {
-			current_operation--;
-			edit_operations[current_operation].undo(this);
+			do {
+				current_operation--;
+				edit_operations[current_operation].undo(this);
+			} while (current_operation > 0 && !edit_operations[current_operation-1].m_final);
 		}
 	}
 
 	void redo() {
 		if (current_operation < edit_operations.size()) {
-			edit_operations[current_operation].apply(this);
-			current_operation++;
+			do {
+				edit_operations[current_operation].apply(this);
+				current_operation++;
+			} while (current_operation < edit_operations.size() && !edit_operations[current_operation-1].m_final);
+		}
+	}
+
+	void copy_selected_nodes(const ImVec2& origin) {
+		int num_nodes_selected = ImNodes::NumSelectedNodes();
+		int* selected_nodes = nullptr;
+
+		if (num_nodes_selected > 0) {
+			selected_nodes = new int[num_nodes_selected];
+			ImNodes::GetSelectedNodes(selected_nodes);
+			auto json = to_json(selected_nodes, origin, num_nodes_selected);
+			clip::set_text(json.dump());
+			delete[] selected_nodes;
+		}
+	}
+
+	void paste(const ImVec2& origin) {
+		if (clip::has(clip::text_format())) {
+			std::string clipboard;
+			clip::get_text(clipboard);
+			auto json = nlohmann::json::parse(clipboard);
+			from_json(json, origin);
 		}
 	}
 
@@ -332,19 +444,74 @@ public:
 			ImNodes::GetSelectedNodes(selected_nodes);
 
 			for (int i = 0; i < num_nodes_selected; i++) {
-				for (int j = 0; j < values[selected_nodes[i]].m_inputs.size(); j++) {
-					EditOperation op = EditOperation::remove_link(values[selected_nodes[i]].m_inputs[j], selected_nodes[i]);
-					apply_operation(op);
+				for (int j = 0; j < MAX_NODES; j++) {
+					for (int k = 0; k < values[j].m_inputs.size(); k++) {
+						if (values[j].m_inputs[k].index == selected_nodes[i]) {
+							EditOperation op = EditOperation::remove_link(values[j].m_inputs[k], j, false);
+							apply_operation(op);
+						}
+					}
 				}
 			}
 
 			for (int i = 0; i < num_nodes_selected; i++) {
-				EditOperation op = EditOperation::remove_node(selected_nodes[i]);
-				if (i == num_nodes_selected - 1)
-					op.m_final = true;
+				for (int j = 0; j < values[selected_nodes[i]].m_inputs.size(); j++) {
+					if (values[selected_nodes[i]].m_inputs[j].index != NULL_INDEX) {
+						EditOperation op = EditOperation::remove_link(values[selected_nodes[i]].m_inputs[j], selected_nodes[i], false);
+						apply_operation(op);
+					}
+				}
+			}
+
+			for (int i = 0; i < num_nodes_selected; i++) {
+				EditOperation op = EditOperation::remove_node(selected_nodes[i], i == num_nodes_selected - 1);
 				apply_operation(op);
 			}
 		}
+	}
+
+	void save(const char* filename) {
+		FILE* save_file = fopen(filename, "w");
+		unsigned node_count = 0;
+		for (int i = 0; i < MAX_NODES; i++) {
+			if (values[i].m_index != NULL_INDEX) {
+				node_count++;
+			}
+		}
+
+		int* indices = new int[node_count];
+		
+		node_count = 0;
+		for (int i = 0; i < MAX_NODES; i++) {
+			if (values[i].m_index != NULL_INDEX) {
+				indices[node_count++] = values[i].m_index;
+			}
+		}
+
+		auto json = to_json(indices, ImVec2(), node_count);
+		
+		delete[] indices;
+		std::string dump = json.dump(4);
+		fwrite(dump.c_str(), 1, dump.size(), save_file);
+		fclose(save_file);
+	}
+
+	void load(const char* filename) {
+		FILE* save_file = fopen(filename, "rb");
+
+		if (save_file) {
+			fseek(save_file, 0, SEEK_END);
+			long size = ftell(save_file);
+			fseek(save_file, 0, SEEK_SET);
+			char* buffer = new char[size + 1];
+			fread(buffer, 1, size, save_file);
+			buffer[size] = 0;
+			fclose(save_file);
+			auto json = nlohmann::json::parse(buffer);
+			delete[] buffer;
+			from_json(json, ImVec2());
+		}
+
 	}
 
 	void show(bool* open) {
@@ -360,7 +527,6 @@ public:
 		// The node editor window
 
 		if (*open) {
-
 			if (ImGui::Begin("Graph Editor", open, flags)) {
 				if (ImGui::BeginMenuBar())
 				{
@@ -399,33 +565,12 @@ public:
 						ImGui::EndMenu();
 					}
 
-					if (ImGui::BeginMenu("Style"))
-					{
-						if (ImGui::MenuItem("Classic"))
-						{
-							ImGui::StyleColorsClassic();
-							ImNodes::StyleColorsClassic();
-						}
-						if (ImGui::MenuItem("Dark"))
-						{
-							ImGui::StyleColorsDark();
-							ImNodes::StyleColorsDark();
-						}
-						if (ImGui::MenuItem("Light"))
-						{
-							ImGui::StyleColorsLight();
-							ImNodes::StyleColorsLight();
-						}
-						ImGui::EndMenu();
-					}
-
 					ImGui::EndMenuBar();
 				}
 
 				ImNodes::BeginNodeEditor();
 				for (int i = 0; i < MAX_NODES; i++) {
 					if (values[i].m_index != NULL_INDEX) {
-
 						const float node_width = 70.0f;
 
 						if (i == current_backwards_node) {
@@ -537,8 +682,6 @@ public:
 						if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
 							undo();
 						}
-
-
 					}
 
 					if (ImGui::IsKeyPressed(ImGuiKey_R)) {
@@ -628,12 +771,25 @@ public:
 						apply_operation(edit_operation);
 					}
 
+					if (clip::has(clip::text_format())) {
+						ImGui::Separator();
+						if (ImGui::MenuItem("Paste")) {
+							paste(click_pos);
+						}
+					}
+
 					ImGui::EndPopup();
 				}
 
 				if (ImGui::BeginPopup("multiple nodes selected")) {
+					const ImVec2 screen_click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+					ImVec2 click_pos = ImNodes::ScreenSpaceToGridSpace(screen_click_pos);
+
 					if (ImGui::MenuItem("Delete")) {
 						delete_selected_nodes();
+					}
+					if (ImGui::MenuItem("Copy")) {
+						copy_selected_nodes(click_pos);
 					}
 
 					ImGui::EndPopup();
@@ -641,7 +797,11 @@ public:
 
 				if (ImGui::BeginPopup("node hovered")) {
 					if (ImGui::MenuItem("Backward Pass")) {
-						//	s_current_backwards_node = s_last_node_hovered;
+						EditOperation op = EditOperation();
+						op.m_index = last_node_hovered;
+						op.m_type = EditOperationType::SetBackwardsNode;
+						op.m_final = true;
+						apply_operation(op);
 					}
 
 					if (ImGui::MenuItem("Delete Node")) {
@@ -660,6 +820,12 @@ public:
 					int* moved_nodes = new int[num_moved];
 					ImVec2* deltas = new ImVec2[num_moved];
 					ImNodes::GetLastMovedNodes(moved_nodes, deltas);
+					for (int i = 0; i < num_moved; i++) {
+						EditOperation op = EditOperation::move_node(moved_nodes[i], deltas[i], false);
+						if (i == num_moved - 1)
+							op.m_final = true;
+						add_operation_without_applying(op);
+					}
 					delete[] moved_nodes;
 					delete[] deltas;
 				}
@@ -735,13 +901,17 @@ void EditOperation::apply(Context* context) {
 	case EditOperationType::AddLink:
 		if (context->values[m_index].m_inputs.size() < m_connection.input_slot + 1)
 			context->values[m_index].m_inputs.resize(m_connection.input_slot + 1);
-		context->values[m_index].m_inputs[m_connection.input_slot].index = m_connection.index;
+		context->values[m_index].m_inputs[m_connection.input_slot] = m_connection;
 		break;
 	case EditOperationType::RemoveLink:
 		context->values[m_index].m_inputs[m_connection.input_slot].index = NULL_INDEX;
 		break;
 	case EditOperationType::MoveNodes:
 		ImNodes::SetNodeGridSpacePos(m_index, ImNodes::GetNodeGridSpacePos(m_index) + m_pos_delta);
+		break;
+	case EditOperationType::SetBackwardsNode:
+		m_previousIndex = context->current_backwards_node;
+		context->current_backwards_node = m_index;
 		break;
 	default:
 		break;
@@ -771,48 +941,57 @@ void EditOperation::undo(Context* context) {
 		context->values[m_index].m_inputs[m_connection.input_slot].index = m_connection.index;
 		break;
 	case EditOperationType::MoveNodes:
-		ImNodes::SetNodeGridSpacePos(m_index, ImNodes::GetNodeGridSpacePos(m_index) + m_pos_delta);
+		ImNodes::SetNodeGridSpacePos(m_index, ImNodes::GetNodeGridSpacePos(m_index) - m_pos_delta);
+		break;
+	case EditOperationType::SetBackwardsNode:
+		context->current_backwards_node = m_previousIndex;
 		break;
 	}
 }
 
-EditOperation EditOperation::add_node(const Value& value, const ImVec2& pos) {
+EditOperation EditOperation::add_node(const Value& value, const ImVec2& pos, const bool _final) {
 	EditOperation op;
 	op.m_type = EditOperationType::AddNode;
 	op.m_value = value;
 	op.m_position = pos;
+	op.m_final = _final;
 	return op;
 }
 
-EditOperation EditOperation::remove_node(const Index index) {
+EditOperation EditOperation::remove_node(const Index index, const bool _final) {
 	EditOperation op;
 	op.m_type = EditOperationType::RemoveNode;
 	op.m_index = index;
+	op.m_final = _final;
 	return op;
 }
 
 EditOperation EditOperation::add_link(const Connection& connection, 
-									  const Index index) {
+									  const Index index, const bool _final) {
 	EditOperation op;
 	op.m_type = EditOperationType::AddLink;
 	op.m_index = index;
 	op.m_connection = connection;
+	op.m_final = _final;
 	return op;
 }
 
 EditOperation EditOperation::remove_link(const Connection& connection,
-										 const Index index) {
+										 const Index index, const bool _final) {
 	EditOperation op;
 	op.m_type = EditOperationType::RemoveLink;
+	op.m_index = index; 
 	op.m_connection = connection;
+	op.m_final = _final;
 	return op;
 }
 
-EditOperation EditOperation::move_node(const Index index, const ImVec2& delta) {
+EditOperation EditOperation::move_node(const Index index, const ImVec2& delta, const bool _final) {
 	EditOperation op;
 	op.m_type = EditOperationType::MoveNodes;
 	op.m_index = index;
 	op.m_pos_delta = delta;
+	op.m_final = _final;
 	return op;
 }
 
@@ -820,4 +999,12 @@ Context s_context;
 
 void show_graph_editor(bool* open) {
 	s_context.show(open);
+}
+
+void save(const char* filename) {
+	s_context.save(filename);
+}
+
+void load(const char* filename) {
+	s_context.load(filename);
 }

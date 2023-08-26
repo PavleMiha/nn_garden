@@ -10,3 +10,6 @@
 [submodule "deps/glfw"]
 	path = deps/glfw
 	url = https://github.com/glfw/glfw.git
+[submodule "deps/clip"]
+	path = deps/clip
+	url = https://github.com/dacap/clip.git
