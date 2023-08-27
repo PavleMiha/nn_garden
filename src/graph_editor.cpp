@@ -7,10 +7,11 @@
 #include "json.hpp"
 
 #define MAX_NODES 1024*1024
-#define MAX_CONNECTIONS_PER_NODE 3
+#define MAX_CONNECTIONS_PER_NODE 64
 #define NULL_INDEX UINT_MAX
 using std::vector;
 using std::unordered_set;
+using nlohmann::json;
 
 enum class Operation {
 	Add,
@@ -18,6 +19,7 @@ enum class Operation {
 	Multiply,
 	Divide,
 	Power,
+	Function,
 	None,
 };
 
@@ -25,10 +27,19 @@ typedef unsigned Index;
 
 struct Connection {
 public:
+	Connection(Index _index, unsigned short _input_slot, unsigned short _output_slot) :
+		index(_index), input_slot(_input_slot), output_slot(_output_slot) {};
 	Connection() : index(NULL_INDEX), input_slot(0), output_slot(0) {};
 	Index index { NULL_INDEX };
 	unsigned short input_slot{ 0 };
 	unsigned short output_slot{ 0 };
+};
+
+class FunctionNodeData {
+public:
+	vector<Connection>	   m_function_input_nodes;
+	vector<Connection>	   m_function_output_nodes;
+
 };
 
 class Value {
@@ -38,6 +49,7 @@ public:
 	float			   m_gradient{ 0.f };
 	Operation		   m_operation{ Operation::None };
 	vector<Connection> m_inputs;
+	Index			   m_parent{ NULL_INDEX };
 
 	nlohmann::json to_json() {
 		nlohmann::json j;
@@ -190,30 +202,40 @@ public:
 	static Value make_add() {
 		Value value;
 		value.m_operation = Operation::Add;
+		value.m_inputs.push_back(Connection(NULL_INDEX, 0, 0));
+		value.m_inputs.push_back(Connection(NULL_INDEX, 1, 0));
 		return value;
 	}
 
 	static Value make_multiply() {
 		Value value;
 		value.m_operation = Operation::Multiply;
+		value.m_inputs.push_back(Connection(NULL_INDEX, 0, 0));
+		value.m_inputs.push_back(Connection(NULL_INDEX, 1, 0));
 		return value;
 	}
 
 	static Value make_subtract() {
 		Value value;
 		value.m_operation = Operation::Subtract;
+		value.m_inputs.push_back(Connection(NULL_INDEX, 0, 0));
+		value.m_inputs.push_back(Connection(NULL_INDEX, 1, 0));
 		return value;
 	}
 
 	static Value make_divide() {
 		Value value;
 		value.m_operation = Operation::Divide;
+		value.m_inputs.push_back(Connection(NULL_INDEX, 0, 0));
+		value.m_inputs.push_back(Connection(NULL_INDEX, 1, 0));
 		return value;
 	}
 
 	static Value make_power() {
 		Value value;
 		value.m_operation = Operation::Power;
+		value.m_inputs.push_back(Connection(NULL_INDEX, 0, 0));
+		value.m_inputs.push_back(Connection(NULL_INDEX, 1, 0));
 		return value;
 	}
 
@@ -249,21 +271,102 @@ public:
 	static EditOperation remove_link(const Connection& connection, const Index index, const bool _final = true);
 	static EditOperation move_node(const Index index, const ImVec2& delta, const bool _final = true);
 };
-
+class Function {
+	unsigned m_id;
+	json	 m_json;
+};
 
 class Context {
 public:
-	Value values[MAX_NODES];
-	Index current_backwards_node = NULL_INDEX;
-	Index next_free_index = 0;
-	int   current_operation = 0;
+	Value				  values[MAX_NODES];
+	Index				  parent[MAX_NODES];
+	FunctionNodeData	  function_node_data[MAX_NODES];
+	Index				  current_backwards_node = NULL_INDEX;
+	Index				  next_free_index = 0;
+	int					  current_operation = 0;
 	vector<EditOperation> edit_operations;
-	double time_right_mouse_pressed = 0.;
-	int	  last_node_hovered = -1;
-	bool  show_debug_info_ = false;
-	nlohmann::json clipboard = nlohmann::json::object();
+	double				  time_right_mouse_pressed = 0.;
+	int					  last_node_hovered = -1;
+	std::vector<Function> functions;
 
 	ImNodesMiniMapLocation minimap_location_;
+
+	void clear() {
+		for (int i = 0; i < MAX_NODES; i++) {
+			values[i] = Value::make_value();
+			values[i].m_index = NULL_INDEX;
+			parent[i] = NULL_INDEX;
+		}
+		next_free_index = 0;
+		current_backwards_node = NULL_INDEX;
+		current_operation = 0;
+		functions.clear();
+		edit_operations.clear();
+	}
+
+	Context() {
+		clear();
+	}
+
+	void collapse_selected_nodes_to_function(const ImVec2& origin) {
+		int num_nodes_selected = ImNodes::NumSelectedNodes();
+		int* selected_nodes = nullptr;
+
+		if (num_nodes_selected > 0) {
+			selected_nodes = new int[num_nodes_selected];
+			ImNodes::GetSelectedNodes(selected_nodes);
+			collapse_to_function(selected_nodes, num_nodes_selected, origin);
+			delete[] selected_nodes;
+		}
+	}
+
+	void collapse_to_function(int* indices, size_t num_indices, ImVec2 pos) {
+		if (num_indices <= 0) {
+			return;
+		}
+
+		Index function_index = get_new_value();
+		values[function_index].m_operation = Operation::Function;
+
+		unordered_set<Index> indices_set;
+
+		for (int i = 0; i < num_indices; i++) {
+			indices_set.insert(indices[i]);
+		}
+
+		//find inputs
+
+		for (int i = 0; i < num_indices; i++) {
+			for (int j = 0; j < values[indices[i]].m_inputs.size(); j++) {
+				if (values[indices[i]].m_inputs[j].index != NULL_INDEX) {
+					if (indices_set.find(values[indices[i]].m_inputs[j].index) == indices_set.end()) {
+						Connection connection;
+						connection.index = values[indices[i]].m_index;
+						connection.input_slot = j;
+						function_node_data[function_index].m_function_input_nodes.push_back(connection);
+					}
+				}
+			}
+		}
+
+		for (int i = 0; i < MAX_NODES; i++) {
+			if (values[i].m_index != NULL_INDEX) {
+				if (indices_set.find(values[i].m_index) == indices_set.end()) {
+					for (int j = 0; j < values[i].m_inputs.size(); j++) {
+						if (indices_set.find(values[i].m_inputs[j].index) != indices_set.end()) {
+							Connection connection;
+							connection.index = values[i].m_inputs[j].index;
+							function_node_data[function_index].m_function_output_nodes.push_back(connection);
+						}
+					}
+				}
+			}
+		}
+
+		for (int i = 0; i < num_indices; i++) {
+			values[indices[i]].m_parent = function_index;
+		}
+	}
 
 	Index get_new_value() {
 		values[next_free_index].m_index = next_free_index;
@@ -509,9 +612,47 @@ public:
 			fclose(save_file);
 			auto json = nlohmann::json::parse(buffer);
 			delete[] buffer;
+			clear();
 			from_json(json, ImVec2());
 		}
 
+	}
+
+	unsigned get_attribute_input_index(Index i, unsigned input) {
+		if (values[i].m_parent == NULL_INDEX) {
+			return i * MAX_CONNECTIONS_PER_NODE + input;
+		}
+		else {
+			Value& currentValue = values[i];
+
+			for (int input_pin = 0; input_pin < function_node_data[currentValue.m_parent].m_function_input_nodes.size(); input_pin++) {
+				if (function_node_data[currentValue.m_parent].m_function_input_nodes[input_pin].index == currentValue.m_index &&
+					function_node_data[currentValue.m_parent].m_function_input_nodes[input_pin].input_slot == currentValue.m_inputs[input].input_slot) {
+					return currentValue.m_parent * MAX_CONNECTIONS_PER_NODE + input_pin;
+					//ImNodes::Link(currentValue.m_parent * MAX_CONNECTIONS_PER_NODE + input_pin,
+						//currentValue.m_inputs[input].index * MAX_CONNECTIONS_PER_NODE + values[currentValue.m_inputs[input].index].m_inputs.size(),
+				}
+			}
+		}
+
+	}
+
+	unsigned get_attribute_output_index(Index i, unsigned output) {
+		if (values[i].m_parent == NULL_INDEX) {
+			return i * MAX_CONNECTIONS_PER_NODE + values[i].m_inputs.size();
+		}
+		else {
+			Index parent_index = values[i].m_parent;
+			Value& parentValue = values[parent_index];
+			for (int output_pin = 0; output_pin < function_node_data[parent_index].m_function_output_nodes.size(); output_pin++) {
+				if (function_node_data[parent_index].m_function_output_nodes[output_pin].index == i &&
+					function_node_data[parent_index].m_function_output_nodes[output_pin].output_slot == output) {
+					return parentValue.m_index * MAX_CONNECTIONS_PER_NODE +
+						   function_node_data[parent_index].m_function_input_nodes.size() +
+						   output_pin;
+				}
+			}
+		}
 	}
 
 	void show(bool* open) {
@@ -570,106 +711,134 @@ public:
 
 				ImNodes::BeginNodeEditor();
 				for (int i = 0; i < MAX_NODES; i++) {
-					if (values[i].m_index != NULL_INDEX) {
-						const float node_width = 70.0f;
+					
+					Value& currentValue = values[i];
 
-						if (i == current_backwards_node) {
-							ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(191, 109, 11, 255));
-							ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(194, 126, 45, 255));
-							ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(204, 148, 81, 255));
-						}
+					if (currentValue.m_index != NULL_INDEX) {
+						if (currentValue.m_parent == NULL_INDEX) {
+							const float node_width = 70.0f;
 
-						if (values[i].m_operation == Operation::None)
-						{
-							ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(0x69, 0x0f, 0x62, 255));
-							ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(0x8b, 0x26, 0x84, 255));
-							ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(0x94, 0x2e, 0x8c, 255));
-						}
-
-						ImNodes::BeginNode(i);
-
-						ImNodes::BeginNodeTitleBar();
-						switch (values[i].m_operation) {
-						case Operation::Add:
-							ImGui::TextUnformatted("add");
-							break;
-						case Operation::Subtract:
-							ImGui::TextUnformatted("sub");
-							break;
-						case Operation::Multiply:
-							ImGui::TextUnformatted("mul");
-							break;
-						case Operation::Divide:
-							ImGui::TextUnformatted("div");
-							break;
-						case Operation::Power:
-							ImGui::TextUnformatted("pow");
-							break;
-						default:
-							ImGui::TextUnformatted("value");
-						}
-						ImNodes::EndNodeTitleBar();
-						unsigned attribute_index = i * MAX_CONNECTIONS_PER_NODE;
-
-						{
-							if (values[i].m_operation == Operation::None)
-							{
-								const float label_width = ImGui::CalcTextSize("value").x;
-
-								ImGui::PushItemWidth(node_width - label_width);
-								ImGui::DragFloat(
-									"##hidelabel", &values[i].m_value, 0.01f);
-								ImGui::PopItemWidth();
+							if (i == current_backwards_node) {
+								ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(191, 109, 11, 255));
+								ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(194, 126, 45, 255));
+								ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(204, 148, 81, 255));
 							}
-							else
+
+							if (currentValue.m_operation == Operation::None)
 							{
-								ImNodes::BeginInputAttribute(attribute_index);
-								char text[128];
-								sprintf(text, "%.1f", values[i].m_value);
-
-								const float label_width = ImGui::CalcTextSize(text).x;
-								ImGui::Indent(node_width - label_width);
-								ImGui::Text(text, values[i].m_gradient);
-								ImNodes::EndInputAttribute();
+								ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(0x69, 0x0f, 0x62, 255));
+								ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(0x8b, 0x26, 0x84, 255));
+								ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(0x94, 0x2e, 0x8c, 255));
 							}
+
+							ImNodes::BeginNode(i);
+
+							ImNodes::BeginNodeTitleBar();
+							switch (currentValue.m_operation) {
+							case Operation::Function:
+								ImGui::TextUnformatted("function");
+								break;
+							case Operation::Add:
+								ImGui::TextUnformatted("add");
+								break;
+							case Operation::Subtract:
+								ImGui::TextUnformatted("sub");
+								break;
+							case Operation::Multiply:
+								ImGui::TextUnformatted("mul");
+								break;
+							case Operation::Divide:
+								ImGui::TextUnformatted("div");
+								break;
+							case Operation::Power:
+								ImGui::TextUnformatted("pow");
+								break;
+							default:
+								ImGui::TextUnformatted("value");
+							}
+							ImNodes::EndNodeTitleBar();
+							unsigned attribute_index = i * MAX_CONNECTIONS_PER_NODE;
+
+							if (currentValue.m_operation != Operation::Function) {
+								for (int input = 0; input < currentValue.m_inputs.size() || input < 2; input++) {
+									if (input < currentValue.m_inputs.size()) {
+										ImNodes::BeginInputAttribute(attribute_index + input);
+									}
+
+									if (input == 0) {
+										if (currentValue.m_operation == Operation::None) {
+											const float label_width = ImGui::CalcTextSize("value").x;
+
+											ImGui::PushItemWidth(node_width - label_width);
+											ImGui::DragFloat(
+												"##hidelabel", &currentValue.m_value, 0.01f);
+											ImGui::PopItemWidth();
+										}
+										else {
+											char text[128];
+											sprintf(text, "%.1f", currentValue.m_value);
+
+											const float label_width = ImGui::CalcTextSize(text).x;
+											ImGui::Indent(node_width - label_width);
+											ImGui::Text(text);
+										}
+									}
+
+									if (input == 1) {
+										if (currentValue.m_operation != Operation::Function) {
+											char text[128];
+											sprintf(text, "grad %.1f", currentValue.m_gradient);
+
+											const float label_width = ImGui::CalcTextSize(text).x;
+											ImGui::Indent(node_width - label_width);
+											ImGui::Text(text, currentValue.m_gradient);
+										}
+									}
+									if (input < currentValue.m_inputs.size()) {
+										ImNodes::EndInputAttribute();
+									}
+								}
+
+								ImNodes::BeginOutputAttribute(attribute_index + currentValue.m_inputs.size());
+								ImNodes::EndOutputAttribute();
+
+							}
+							else {
+								for (int input = 0; input < function_node_data[i].m_function_input_nodes.size(); input++) {
+									ImNodes::BeginInputAttribute(attribute_index + input);
+									ImGui::Text("%i", input);
+									ImNodes::EndInputAttribute();
+								}
+
+								for (int output = 0; output < function_node_data[i].m_function_output_nodes.size(); output++) {
+									ImNodes::BeginOutputAttribute(attribute_index +
+																	function_node_data[i].m_function_input_nodes.size() + output);
+									ImNodes::EndOutputAttribute();
+								}
+							}
+
+							if (i == current_backwards_node || currentValue.m_operation == Operation::None) {
+								ImNodes::PopColorStyle();
+								ImNodes::PopColorStyle();
+								ImNodes::PopColorStyle();
+							}
+
+							ImNodes::EndNode();
 						}
 
-						if (values[i].m_operation == Operation::None)
-						{
-							char text[128];
-							sprintf(text, "grad %.1f", values[i].m_gradient);
+						for (int input = 0; input < currentValue.m_inputs.size(); input++) {
+							if (currentValue.m_inputs[input].index != NULL_INDEX) {
+								if (currentValue.m_parent == NULL_INDEX ||
+									values[currentValue.m_inputs[input].index].m_parent == NULL_INDEX ||
+									currentValue.m_parent != values[currentValue.m_inputs[input].index].m_parent) {
+									unsigned input_index = get_attribute_input_index(i, input);
+									unsigned output_index = get_attribute_output_index(currentValue.m_inputs[input].index, currentValue.m_inputs[input].output_slot);
 
-							const float label_width = ImGui::CalcTextSize(text).x;
-							ImGui::Indent(node_width - label_width);
-							ImGui::Text(text, values[i].m_gradient);
-						}
-						else
-						{
-							ImNodes::BeginInputAttribute(attribute_index + 1);
-
-							char text[128];
-							sprintf(text, "grad %.1f", values[i].m_gradient);
-
-							const float label_width = ImGui::CalcTextSize(text).x;
-							ImGui::Indent(node_width - label_width);
-							ImGui::Text(text, values[i].m_gradient);
-							ImNodes::EndInputAttribute();
-
-						}
-						ImNodes::BeginOutputAttribute(attribute_index + 2);
-						ImNodes::EndOutputAttribute();
-
-						if (i == current_backwards_node || values[i].m_operation == Operation::None) {
-							ImNodes::PopColorStyle();
-							ImNodes::PopColorStyle();
-							ImNodes::PopColorStyle();
-						}
-
-						ImNodes::EndNode();
-
-						for (int input = 0; input < values[i].m_inputs.size(); input++) {
-							if (values[i].m_inputs[input].index != NULL_INDEX)
-								ImNodes::Link(i * MAX_CONNECTIONS_PER_NODE + input, values[i].m_inputs[input].index * MAX_CONNECTIONS_PER_NODE + 2, attribute_index + input);
+									ImNodes::Link(input_index,
+										output_index,
+										input_index);
+								}
+							}
 						}
 					}
 				}
@@ -791,6 +960,9 @@ public:
 					if (ImGui::MenuItem("Copy")) {
 						copy_selected_nodes(click_pos);
 					}
+					if (ImGui::MenuItem("Collapse to Function")) {
+						collapse_selected_nodes_to_function(click_pos);
+					}
 
 					ImGui::EndPopup();
 				}
@@ -839,33 +1011,24 @@ public:
 					Index secondNode = end_attr / MAX_CONNECTIONS_PER_NODE;
 					int secondNodeAttr = end_attr % MAX_CONNECTIONS_PER_NODE;
 
-					if (firstNodeAttr == 2 && secondNodeAttr == 0) {
-						Connection connection = Connection();
-						connection.index = firstNode;
-						connection.input_slot = 0;
-						connection.output_slot = 0;
-						apply_operation(EditOperation::add_link(connection, secondNode));
-					}
-					else if (firstNodeAttr == 2 && secondNodeAttr == 1) {
-						Connection connection = Connection();
-						connection.index = firstNode;
-						connection.input_slot = 1;
-						connection.output_slot = 0;
-						apply_operation(EditOperation::add_link(connection, secondNode));
-					}
-					else if (firstNodeAttr == 0 && secondNodeAttr == 2) {
+					bool is_first_input = firstNodeAttr < values[firstNode].m_inputs.size();
+					bool is_second_input = secondNodeAttr < values[secondNode].m_inputs.size();
+
+					if (is_first_input && !is_second_input) {
+						secondNodeAttr -= values[secondNode].m_inputs.size();
 						Connection connection = Connection();
 						connection.index = secondNode;
-						connection.input_slot = 0;
-						connection.output_slot = 0;
+						connection.input_slot = firstNodeAttr;
+						connection.output_slot = secondNodeAttr;
 						apply_operation(EditOperation::add_link(connection, firstNode));
 					}
-					else if (firstNodeAttr == 1 && secondNodeAttr == 2) {
+					else if (!is_first_input && is_second_input) {
+						firstNodeAttr -= values[firstNode].m_inputs.size();
 						Connection connection = Connection();
-						connection.index = secondNode;
-						connection.input_slot = 1;
-						connection.output_slot = 0;
-						apply_operation(EditOperation::add_link(connection, firstNode));
+						connection.index = firstNode;
+						connection.input_slot = secondNodeAttr;
+						connection.output_slot = firstNodeAttr;
+						apply_operation(EditOperation::add_link(connection, secondNode));
 					}
 				}
 
