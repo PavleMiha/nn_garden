@@ -1,5 +1,6 @@
 #include "imnodes.h"
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <vector>
 #include <unordered_set>
 #include <iostream>
@@ -10,6 +11,7 @@
 #define MAX_CONNECTIONS_PER_NODE 64
 #define NULL_INDEX UINT_MAX
 using std::vector;
+using std::map;
 using std::unordered_set;
 using nlohmann::json;
 
@@ -37,10 +39,12 @@ public:
 
 class FunctionNodeData {
 public:
+	short				   m_function_id;
 	vector<Connection>	   m_function_input_nodes;
 	vector<Connection>	   m_function_output_nodes;
 
 };
+#define NUM_INPUTS 2
 
 class Value {
 public:
@@ -48,32 +52,32 @@ public:
 	float			   m_value{ 0.f };
 	float			   m_gradient{ 0.f };
 	Operation		   m_operation{ Operation::None };
-	vector<Connection> m_inputs;
+	Connection		   m_inputs[NUM_INPUTS];
 	Index			   m_parent{ NULL_INDEX };
 
-	nlohmann::json to_json() {
-		nlohmann::json j;
+	json to_json() {
+		json j;
 		j["index"]	   = m_index;
 		j["value"]	   = m_value;
 		j["gradient"]  = m_gradient;
 		j["operation"] = m_operation;
-		for (int i = 0; i < m_inputs.size(); i++) {
-			j["inputs"][i]["index"]		  = m_inputs[i].index;
-			j["inputs"][i]["input_slot"]  = m_inputs[i].input_slot;
-			j["inputs"][i]["output_slot"] = m_inputs[i].output_slot;
+		for (int i = 0; i < NUM_INPUTS; i++) {
+			if (m_inputs[i].index != NULL_INDEX) {
+				j["inputs"][i]["index"] = m_inputs[i].index;
+				j["inputs"][i]["input_slot"] = m_inputs[i].input_slot;
+				j["inputs"][i]["output_slot"] = m_inputs[i].output_slot;
+			}
 		}
 		return j;
 	}
 
-	void from_json(nlohmann::json j) {
+	void from_json(json j) {
 		m_index	   = j["index"];
 		m_value	   = j["value"];
 		m_gradient = j["gradient"];
 		m_operation = j["operation"];
 		for (int i = 0; i < j["inputs"].size(); i++) {
 			int slot = j["inputs"][i]["input_slot"];
-			if (slot + 1 > m_inputs.size())
-				m_inputs.resize(slot + 1);
 			m_inputs[slot].index	   = j["inputs"][i]["index"];
 			m_inputs[slot].input_slot  = j["inputs"][i]["input_slot"];
 			m_inputs[slot].output_slot = j["inputs"][i]["output_slot"];
@@ -85,14 +89,11 @@ public:
 	Value(float value, Operation operation, Index parent1, Index parent2) :
 		m_value(value),
 		m_operation(operation),
-		m_inputs(vector<Connection>())
+		m_inputs()
 		{};
 
 	void set_operation(Operation operation) {
 		m_operation = operation;
-		if (m_operation != Operation::None) {
-			m_inputs.resize(2);
-		}
 	}
 
 	vector<Index> get_topological_sorted_descendants(Value* values) {
@@ -116,23 +117,23 @@ public:
 	void single_forwards(Value* values) {
 		switch (m_operation) {
 		case Operation::Add:
-			if (m_inputs.size() == 2 && m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
+			if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
 				m_value = values[m_inputs[0].index].m_value + values[m_inputs[1].index].m_value;
 			break;
 		case Operation::Multiply:
-			if (m_inputs.size() == 2 && m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
+			if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
 				m_value = values[m_inputs[0].index].m_value * values[m_inputs[1].index].m_value;
 			break;
 		case Operation::Subtract:
-			if (m_inputs.size() == 2 && m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
+			if ( m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
 				m_value = values[m_inputs[0].index].m_value - values[m_inputs[1].index].m_value;
 			break;
 		case Operation::Divide:
-			if (m_inputs.size() == 2 && m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
+			if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
 				m_value = values[m_inputs[0].index].m_value / values[m_inputs[1].index].m_value;
 			break;
 		case Operation::Power:
-			if (m_inputs.size() == 2 && m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
+			if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
 				m_value = pow(values[m_inputs[0].index].m_value, values[m_inputs[1].index].m_value);
 			break;
 		default:
@@ -144,31 +145,31 @@ public:
 	void single_backwards(Value* values) {
 		switch (m_operation) {
 		case Operation::Add:
-			if (m_inputs.size() == 2 && m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
+			if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
 				values[m_inputs[0].index].m_gradient += m_gradient;
 				values[m_inputs[1].index].m_gradient += m_gradient;
 			}
 			break;
 		case Operation::Multiply:
-			if (m_inputs.size() == 2 && m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
+			if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
 				values[m_inputs[0].index].m_gradient += m_gradient * values[m_inputs[1].index].m_value;
 				values[m_inputs[1].index].m_gradient += m_gradient * values[m_inputs[0].index].m_value;
 			}
 			break;
 		case Operation::Subtract:
-			if (m_inputs.size() == 2 && m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
+			if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
 				values[m_inputs[0].index].m_gradient += m_gradient;
 				values[m_inputs[1].index].m_gradient -= m_gradient;
 			}
 			break;
 		case Operation::Divide:
-			if (m_inputs.size() == 2 && m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
+			if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
 				values[m_inputs[0].index].m_gradient += m_gradient / values[m_inputs[1].index].m_value;
 				values[m_inputs[1].index].m_gradient -= m_gradient * values[m_inputs[0].index].m_value / (values[m_inputs[1].index].m_value * values[m_inputs[1].index].m_value);
 			}
 			break;
 		case Operation::Power:
-			if (m_inputs.size() == 2 && m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
+			if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
 				values[m_inputs[0].index].m_gradient += m_gradient * values[m_inputs[1].index].m_value * pow(values[m_inputs[0].index].m_value, values[m_inputs[1].index].m_value - 1);
 				values[m_inputs[1].index].m_gradient += m_gradient * pow(values[m_inputs[0].index].m_value, values[m_inputs[1].index].m_value) * log(values[m_inputs[0].index].m_value);
 			}
@@ -202,45 +203,73 @@ public:
 	static Value make_add() {
 		Value value;
 		value.m_operation = Operation::Add;
-		value.m_inputs.push_back(Connection(NULL_INDEX, 0, 0));
-		value.m_inputs.push_back(Connection(NULL_INDEX, 1, 0));
 		return value;
 	}
 
 	static Value make_multiply() {
 		Value value;
 		value.m_operation = Operation::Multiply;
-		value.m_inputs.push_back(Connection(NULL_INDEX, 0, 0));
-		value.m_inputs.push_back(Connection(NULL_INDEX, 1, 0));
 		return value;
 	}
 
 	static Value make_subtract() {
 		Value value;
 		value.m_operation = Operation::Subtract;
-		value.m_inputs.push_back(Connection(NULL_INDEX, 0, 0));
-		value.m_inputs.push_back(Connection(NULL_INDEX, 1, 0));
 		return value;
 	}
 
 	static Value make_divide() {
 		Value value;
 		value.m_operation = Operation::Divide;
-		value.m_inputs.push_back(Connection(NULL_INDEX, 0, 0));
-		value.m_inputs.push_back(Connection(NULL_INDEX, 1, 0));
 		return value;
 	}
 
 	static Value make_power() {
 		Value value;
 		value.m_operation = Operation::Power;
-		value.m_inputs.push_back(Connection(NULL_INDEX, 0, 0));
-		value.m_inputs.push_back(Connection(NULL_INDEX, 1, 0));
 		return value;
 	}
 
 };
 
+namespace ImGui
+{
+	bool SelectableInput(const char* str_id, bool selected, ImGuiSelectableFlags flags, char* buf, size_t buf_size)
+	{
+		ImGuiContext& g = *GImGui;
+		ImGuiWindow* window = g.CurrentWindow;
+		ImVec2 pos_before = window->DC.CursorPos;
+
+		PushID(str_id);
+		PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(g.Style.ItemSpacing.x, g.Style.FramePadding.y * 2.0f));
+		bool ret = Selectable("##Selectable", selected, flags | ImGuiSelectableFlags_AllowDoubleClick | ImGuiSelectableFlags_AllowItemOverlap);
+		PopStyleVar();
+
+		ImGuiID id = window->GetID("##Input");
+		bool temp_input_is_active = TempInputIsActive(id);
+		bool temp_input_start = ret ? IsMouseDoubleClicked(0) : false;
+
+		if (temp_input_start)
+			SetActiveID(id, window);
+
+		if (temp_input_is_active || temp_input_start)
+		{
+			ImVec2 pos_after = window->DC.CursorPos;
+			window->DC.CursorPos = pos_before;
+			ret = TempInputText(g.LastItemData.Rect, id, "##Input", buf, (int)buf_size, ImGuiInputTextFlags_AutoSelectAll);
+			window->DC.CursorPos = pos_after;
+		}
+		else
+		{
+			window->DrawList->AddText(pos_before, GetColorU32(ImGuiCol_Text), buf);
+		}
+
+		PopID();
+		return ret;
+	}
+}
+
+class ComputationGraph;
 class Context;
 
 enum class EditOperationType {
@@ -263,35 +292,39 @@ public:
 	ImVec2			  m_pos_delta;
 	bool			  m_final;
 
-	void EditOperation::apply(Context* context);
-	void EditOperation::undo(Context* context);
+	void EditOperation::apply(ComputationGraph* context);
+	void EditOperation::undo(ComputationGraph* context);
 	static EditOperation add_node(const Value& value, const ImVec2& pos, const bool _final = true);
 	static EditOperation remove_node(const Index index, const bool _final = true);
 	static EditOperation add_link(const Connection& connection, const Index index, const bool _final = true);
 	static EditOperation remove_link(const Connection& connection, const Index index, const bool _final = true);
 	static EditOperation move_node(const Index index, const ImVec2& delta, const bool _final = true);
 };
+
 class Function {
-	unsigned m_id;
-	json	 m_json;
+public:
+	char		m_name[128]{ "" };
+	unsigned	m_id{ 0 };
+	json		m_json;
+	bool		m_is_open{ false };
 };
 
-class Context {
+class ComputationGraph {
 public:
-	Value				  values[MAX_NODES];
-	Index				  parent[MAX_NODES];
-	FunctionNodeData	  function_node_data[MAX_NODES];
-	Index				  current_backwards_node = NULL_INDEX;
-	Index				  next_free_index = 0;
-	int					  current_operation = 0;
-	vector<EditOperation> edit_operations;
-	double				  time_right_mouse_pressed = 0.;
-	int					  last_node_hovered = -1;
-	std::vector<Function> functions;
-
+	bool				   used				 [MAX_NODES];
+	Value				   values			 [MAX_NODES];
+	Index				   parent			 [MAX_NODES];
+	FunctionNodeData	   function_node_data[MAX_NODES];
+	Index				   current_backwards_node = NULL_INDEX;
+	Index				   next_free_index = 0;
+	int					   current_operation = 0;
+	vector<EditOperation>  edit_operations;
+	double				   time_right_mouse_pressed = 0.;
+	int					   last_node_hovered = -1;
 	ImNodesMiniMapLocation minimap_location_;
 
 	void clear() {
+		memset(used, 0, sizeof(used));
 		for (int i = 0; i < MAX_NODES; i++) {
 			values[i] = Value::make_value();
 			values[i].m_index = NULL_INDEX;
@@ -300,33 +333,32 @@ public:
 		next_free_index = 0;
 		current_backwards_node = NULL_INDEX;
 		current_operation = 0;
-		functions.clear();
 		edit_operations.clear();
 	}
 
-	Context() {
+	ComputationGraph() {
 		clear();
 	}
 
-	void collapse_selected_nodes_to_function(const ImVec2& origin) {
+	void collapse_selected_nodes_to_function(const ImVec2& origin, vector<Function>& functions) {
 		int num_nodes_selected = ImNodes::NumSelectedNodes();
 		int* selected_nodes = nullptr;
 
 		if (num_nodes_selected > 0) {
 			selected_nodes = new int[num_nodes_selected];
 			ImNodes::GetSelectedNodes(selected_nodes);
-			collapse_to_function(selected_nodes, num_nodes_selected, origin);
+			collapse_to_function(selected_nodes, num_nodes_selected, origin, functions);
 			delete[] selected_nodes;
 		}
 	}
 
-	void collapse_to_function(int* indices, size_t num_indices, ImVec2 pos) {
+	void collapse_to_function(int* indices, size_t num_indices, ImVec2 pos, vector<Function>& functions) {
 		if (num_indices <= 0) {
 			return;
 		}
 
-		Index function_index = get_new_value();
-		values[function_index].m_operation = Operation::Function;
+		Index function_node_index = get_new_value();
+		values[function_node_index].m_operation = Operation::Function;
 
 		unordered_set<Index> indices_set;
 
@@ -334,29 +366,40 @@ public:
 			indices_set.insert(indices[i]);
 		}
 
+		json json_data = to_json(indices, pos, num_indices);
+
+		Function function;
+		strcpy(function.m_name, "New function");
+		function.m_id = functions.size();
+		function.m_json = json_data;
+		functions.push_back(function);
+		printf("%s", function.m_json.dump(4).c_str());
+
+		int function_id = function.m_id;
+
 		//find inputs
 
 		for (int i = 0; i < num_indices; i++) {
-			for (int j = 0; j < values[indices[i]].m_inputs.size(); j++) {
+			for (int j = 0; j < NUM_INPUTS; j++) {
 				if (values[indices[i]].m_inputs[j].index != NULL_INDEX) {
 					if (indices_set.find(values[indices[i]].m_inputs[j].index) == indices_set.end()) {
 						Connection connection;
 						connection.index = values[indices[i]].m_index;
 						connection.input_slot = j;
-						function_node_data[function_index].m_function_input_nodes.push_back(connection);
+						function_node_data[function_node_index].m_function_input_nodes.push_back(connection);
 					}
 				}
 			}
 		}
 
 		for (int i = 0; i < MAX_NODES; i++) {
-			if (values[i].m_index != NULL_INDEX) {
+			if (used[i]) {
 				if (indices_set.find(values[i].m_index) == indices_set.end()) {
-					for (int j = 0; j < values[i].m_inputs.size(); j++) {
+					for (int j = 0; j < NUM_INPUTS; j++) {
 						if (indices_set.find(values[i].m_inputs[j].index) != indices_set.end()) {
 							Connection connection;
 							connection.index = values[i].m_inputs[j].index;
-							function_node_data[function_index].m_function_output_nodes.push_back(connection);
+							function_node_data[function_node_index].m_function_output_nodes.push_back(connection);
 						}
 					}
 				}
@@ -364,11 +407,14 @@ public:
 		}
 
 		for (int i = 0; i < num_indices; i++) {
-			values[indices[i]].m_parent = function_index;
+			values[indices[i]].m_parent = function_node_index;
 		}
+
+		function_node_data[function_node_index].m_function_id = function_id;
 	}
 
 	Index get_new_value() {
+		used[next_free_index] = true;
 		values[next_free_index].m_index = next_free_index;
 		return next_free_index++;
 	}
@@ -379,7 +425,7 @@ public:
 		}
 
 		for (int i = 0; i < MAX_NODES; i++) {
-			for (int j = 0; j < values[i].m_inputs.size(); j++) {
+			for (int j = 0; j < NUM_INPUTS; j++) {
 				if (values[i].m_inputs[j].index == index) {
 					removed_connections.push_back(values[i].m_inputs[j]);
 					values[i].m_inputs[j] = Connection();
@@ -397,9 +443,9 @@ public:
 		unordered_set <Index> has_parent;
 
 		for (int i = 0; i < MAX_NODES; i++) {
-			if (values[i].m_index != NULL_INDEX) {
+			if (used[i]) {
 				checked.insert(i);
-				for (int i = 0; i < values[i].m_inputs.size(); i++) {
+				for (int i = 0; i < NUM_INPUTS; i++) {
 					has_parent.insert(values[i].m_inputs[i].index);
 				}
 			}
@@ -429,7 +475,7 @@ public:
 
 	void zero_gradients() {
 		for (int i = 0; i < MAX_NODES; i++) {
-			if (values[i].m_index != NULL_INDEX)
+			if (used[i])
 				values[i].m_gradient = 0.f;
 		}
 	}
@@ -438,12 +484,12 @@ public:
 		return values[index];
 	}
 
-	void from_json(const nlohmann::json& json, const ImVec2& origin) {
+	void from_json(const json& json, const ImVec2& origin) {
 		if (json["nodes"].size() == 0) {
 			return;
 		}
 
-		std::map<Index, Index> json_index_to_index;
+		map<Index, Index> json_index_to_index;
 		for (int i = 0; i < json["nodes"].size(); i++) {
 			Index index = get_new_value();
 			json_index_to_index[json["nodes"][i]["index"]] = index;
@@ -454,7 +500,7 @@ public:
 			Value value;
 			value.from_json(json["nodes"][i]);
 			value.m_index = json_index_to_index[json_index];
-			for (int j = 0; j < value.m_inputs.size(); j++) {
+			for (int j = 0; j < NUM_INPUTS; j++) {
 				if (json_index_to_index.find(value.m_inputs[j].index) == json_index_to_index.end()) {
 					value.m_inputs[j].index = NULL_INDEX;
 				}
@@ -469,10 +515,10 @@ public:
 		edit_operations.back().m_final = true;		
 	}
 
-	nlohmann::json to_json(int* indices, const ImVec2& origin, int num) {
+	json to_json(int* indices, const ImVec2& origin, int num) {
 		int next_json_index = 0;
 		nlohmann::json j;
-		std::map<Index, int> index_to_json_index;
+		map<Index, int> index_to_json_index;
 		for (int i = 0; i < num; i++) {
 			j["nodes"].push_back(values[indices[i]].to_json());
 			ImVec2 pos = ImNodes::GetNodeGridSpacePos(indices[i]);
@@ -533,7 +579,7 @@ public:
 		if (clip::has(clip::text_format())) {
 			std::string clipboard;
 			clip::get_text(clipboard);
-			auto json = nlohmann::json::parse(clipboard);
+			auto json = json::parse(clipboard);
 			from_json(json, origin);
 		}
 	}
@@ -548,7 +594,7 @@ public:
 
 			for (int i = 0; i < num_nodes_selected; i++) {
 				for (int j = 0; j < MAX_NODES; j++) {
-					for (int k = 0; k < values[j].m_inputs.size(); k++) {
+					for (int k = 0; k < NUM_INPUTS; k++) {
 						if (values[j].m_inputs[k].index == selected_nodes[i]) {
 							EditOperation op = EditOperation::remove_link(values[j].m_inputs[k], j, false);
 							apply_operation(op);
@@ -558,7 +604,7 @@ public:
 			}
 
 			for (int i = 0; i < num_nodes_selected; i++) {
-				for (int j = 0; j < values[selected_nodes[i]].m_inputs.size(); j++) {
+				for (int j = 0; j < NUM_INPUTS; j++) {
 					if (values[selected_nodes[i]].m_inputs[j].index != NULL_INDEX) {
 						EditOperation op = EditOperation::remove_link(values[selected_nodes[i]].m_inputs[j], selected_nodes[i], false);
 						apply_operation(op);
@@ -577,7 +623,7 @@ public:
 		FILE* save_file = fopen(filename, "w");
 		unsigned node_count = 0;
 		for (int i = 0; i < MAX_NODES; i++) {
-			if (values[i].m_index != NULL_INDEX) {
+			if (used[i]) {
 				node_count++;
 			}
 		}
@@ -586,7 +632,7 @@ public:
 		
 		node_count = 0;
 		for (int i = 0; i < MAX_NODES; i++) {
-			if (values[i].m_index != NULL_INDEX) {
+			if (used[i]) {
 				indices[node_count++] = values[i].m_index;
 			}
 		}
@@ -610,12 +656,11 @@ public:
 			fread(buffer, 1, size, save_file);
 			buffer[size] = 0;
 			fclose(save_file);
-			auto json = nlohmann::json::parse(buffer);
+			auto json = json::parse(buffer);
 			delete[] buffer;
 			clear();
 			from_json(json, ImVec2());
 		}
-
 	}
 
 	unsigned get_attribute_input_index(Index i, unsigned input) {
@@ -639,7 +684,7 @@ public:
 
 	unsigned get_attribute_output_index(Index i, unsigned output) {
 		if (values[i].m_parent == NULL_INDEX) {
-			return i * MAX_CONNECTIONS_PER_NODE + values[i].m_inputs.size();
+			return i * MAX_CONNECTIONS_PER_NODE + NUM_INPUTS;
 		}
 		else {
 			Index parent_index = values[i].m_parent;
@@ -655,7 +700,7 @@ public:
 		}
 	}
 
-	void show(bool* open) {
+	void show(const int editor_id, bool* open, std::vector<Function>& functions, const char* name) {
 		forwards();
 
 		zero_gradients();
@@ -668,7 +713,7 @@ public:
 		// The node editor window
 
 		if (*open) {
-			if (ImGui::Begin("Graph Editor", open, flags)) {
+			if (ImGui::Begin(name, open, flags)) {
 				if (ImGui::BeginMenuBar())
 				{
 					if (ImGui::BeginMenu("View"))
@@ -709,7 +754,8 @@ public:
 					ImGui::EndMenuBar();
 				}
 
-				ImNodes::BeginNodeEditor();
+				ImNodes::BeginNodeEditor(editor_id);
+				ImNodes::StyleColorsDark();
 				for (int i = 0; i < MAX_NODES; i++) {
 					
 					Value& currentValue = values[i];
@@ -736,7 +782,10 @@ public:
 							ImNodes::BeginNodeTitleBar();
 							switch (currentValue.m_operation) {
 							case Operation::Function:
-								ImGui::TextUnformatted("function");
+							{
+								short function_id = function_node_data[i].m_function_id;
+								ImGui::TextUnformatted(functions[function_id].m_name);
+							}
 								break;
 							case Operation::Add:
 								ImGui::TextUnformatted("add");
@@ -760,8 +809,8 @@ public:
 							unsigned attribute_index = i * MAX_CONNECTIONS_PER_NODE;
 
 							if (currentValue.m_operation != Operation::Function) {
-								for (int input = 0; input < currentValue.m_inputs.size() || input < 2; input++) {
-									if (input < currentValue.m_inputs.size()) {
+								for (int input = 0; input < NUM_INPUTS || input < 2; input++) {
+									if (currentValue.m_operation != Operation::None) {
 										ImNodes::BeginInputAttribute(attribute_index + input);
 									}
 
@@ -794,12 +843,12 @@ public:
 											ImGui::Text(text, currentValue.m_gradient);
 										}
 									}
-									if (input < currentValue.m_inputs.size()) {
+									if (currentValue.m_operation != Operation::None) {
 										ImNodes::EndInputAttribute();
 									}
 								}
 
-								ImNodes::BeginOutputAttribute(attribute_index + currentValue.m_inputs.size());
+								ImNodes::BeginOutputAttribute(attribute_index + NUM_INPUTS);
 								ImNodes::EndOutputAttribute();
 
 							}
@@ -826,7 +875,7 @@ public:
 							ImNodes::EndNode();
 						}
 
-						for (int input = 0; input < currentValue.m_inputs.size(); input++) {
+						for (int input = 0; input < NUM_INPUTS; input++) {
 							if (currentValue.m_inputs[input].index != NULL_INDEX) {
 								if (currentValue.m_parent == NULL_INDEX ||
 									values[currentValue.m_inputs[input].index].m_parent == NULL_INDEX ||
@@ -867,8 +916,6 @@ public:
 					auto zoom = ImNodes::EditorContextGetZoom() + ImGui::GetIO().MouseWheel * 0.1f;
 					ImNodes::EditorContextSetZoom(zoom, ImGui::GetMousePos());
 				}
-
-				//ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
 
 				int num_nodes_selected = ImNodes::NumSelectedNodes();
 				int* selected_nodes = nullptr;
@@ -961,7 +1008,7 @@ public:
 						copy_selected_nodes(click_pos);
 					}
 					if (ImGui::MenuItem("Collapse to Function")) {
-						collapse_selected_nodes_to_function(click_pos);
+						collapse_selected_nodes_to_function(click_pos, functions);
 					}
 
 					ImGui::EndPopup();
@@ -1011,11 +1058,11 @@ public:
 					Index secondNode = end_attr / MAX_CONNECTIONS_PER_NODE;
 					int secondNodeAttr = end_attr % MAX_CONNECTIONS_PER_NODE;
 
-					bool is_first_input = firstNodeAttr < values[firstNode].m_inputs.size();
-					bool is_second_input = secondNodeAttr < values[secondNode].m_inputs.size();
+					bool is_first_input = firstNodeAttr < NUM_INPUTS;
+					bool is_second_input = secondNodeAttr < NUM_INPUTS;
 
 					if (is_first_input && !is_second_input) {
-						secondNodeAttr -= values[secondNode].m_inputs.size();
+						secondNodeAttr -= NUM_INPUTS;
 						Connection connection = Connection();
 						connection.index = secondNode;
 						connection.input_slot = firstNodeAttr;
@@ -1023,7 +1070,7 @@ public:
 						apply_operation(EditOperation::add_link(connection, firstNode));
 					}
 					else if (!is_first_input && is_second_input) {
-						firstNodeAttr -= values[firstNode].m_inputs.size();
+						firstNodeAttr -= NUM_INPUTS;
 						Connection connection = Connection();
 						connection.index = firstNode;
 						connection.input_slot = secondNodeAttr;
@@ -1031,18 +1078,15 @@ public:
 						apply_operation(EditOperation::add_link(connection, secondNode));
 					}
 				}
-
-				//ImGui::PopStyleVar();
-
-
 			}
 			ImGui::End();
 		}
-
 	}
+	bool selected = false;
+	
 };
 
-void EditOperation::apply(Context* context) {
+void EditOperation::apply(ComputationGraph* context) {
 	switch (m_type) {
 	case EditOperationType::AddNode:
 		{
@@ -1060,10 +1104,9 @@ void EditOperation::apply(Context* context) {
 		m_value = context->values[m_index];
 		m_position = ImNodes::GetNodeGridSpacePos(m_index);
 		context->values[m_index] = Value();
+		context->used[m_index] = false;
 		break;
 	case EditOperationType::AddLink:
-		if (context->values[m_index].m_inputs.size() < m_connection.input_slot + 1)
-			context->values[m_index].m_inputs.resize(m_connection.input_slot + 1);
 		context->values[m_index].m_inputs[m_connection.input_slot] = m_connection;
 		break;
 	case EditOperationType::RemoveLink:
@@ -1081,7 +1124,7 @@ void EditOperation::apply(Context* context) {
 	}
 }
 
-void EditOperation::undo(Context* context) {
+void EditOperation::undo(ComputationGraph* context) {
 	switch (m_type) {
 	case EditOperationType::AddNode:
 		context->values[m_index] = Value();
@@ -1092,6 +1135,7 @@ void EditOperation::undo(Context* context) {
 			context->values[index] = m_value;
 			context->values[index].m_index = index;
 			m_value.m_index = index;
+			context->used[index] = true;
 			ImNodes::SetNodeGridSpacePos(index, m_position);
 		}
 		break;
@@ -1099,8 +1143,6 @@ void EditOperation::undo(Context* context) {
 		context->values[m_index].m_inputs[m_connection.input_slot].index = NULL_INDEX;
 		break;
 	case EditOperationType::RemoveLink:
-		if(context->values[m_index].m_inputs.size() < m_connection.input_slot + 1)
-			context->values[m_index].m_inputs.resize(m_connection.input_slot + 1);
 		context->values[m_index].m_inputs[m_connection.input_slot].index = m_connection.index;
 		break;
 	case EditOperationType::MoveNodes:
@@ -1158,7 +1200,80 @@ EditOperation EditOperation::move_node(const Index index, const ImVec2& delta, c
 	return op;
 }
 
+class Context {
+public:
+	Index					   current_backwards_node = NULL_INDEX;
+	ComputationGraph		   main_graph;
+	map<int, ComputationGraph> function_graphs;
+	std::vector<Function>	   functions;
+
+	Context() {
+		//clear();
+	}
+
+	void clear() {
+		//functions.clear();
+		//main_graph.clear();
+		//for (auto& f : function_graphs) {
+		//	f.clear();
+		//}
+		//function_graphs.clear();
+		//current_backwards_node = NULL_INDEX;
+	}
+
+	int create_function(const json& json_data) {
+	
+	}
+
+	void show_function_list(bool* open) {
+		if (*open) {
+			if (ImGui::Begin("Function List", open)) {
+				for (int i = 0; i < functions.size(); i++) {
+					ImGui::InputText("##", functions[i].m_name, 128);
+					ImGui::SameLine();
+					ImGui::MenuItem("Open", "", &functions[i].m_is_open);
+				}
+				ImGui::End();
+			}
+		}
+	}
+
+	void show(bool* open) {
+		main_graph.show(0, open, functions, "main graph");
+		for (int function_id = 0; function_id < functions.size(); function_id++) {
+			if (functions[function_id].m_is_open) {
+				if (function_graphs.find(function_id) == function_graphs.end()) {
+					ImNodes::CreateContext(function_id + 1);
+					function_graphs[function_id].clear();
+					function_graphs[function_id].from_json(functions[function_id].m_json, ImVec2());
+				}
+				char name[128];
+				sprintf(name, "Function ID %i", function_id);
+				function_graphs[function_id].show(function_id+1, &functions[function_id].m_is_open, functions, name);
+			}
+			else {
+				if (function_graphs.find(function_id) != function_graphs.end()) {
+					function_graphs[function_id].clear();
+					function_graphs.erase(function_id);
+				}
+			}
+		}
+	}
+
+	void save(const char* filename) {
+		main_graph.save(filename);
+	}
+
+	void load(const char* filename) {
+		main_graph.load(filename);
+	}
+};
+
 Context s_context;
+
+void show_function_list(bool* open) {
+	s_context.show_function_list(open);
+}
 
 void show_graph_editor(bool* open) {
 	s_context.show(open);

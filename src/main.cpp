@@ -17,8 +17,8 @@
 class NNGarden : public bigg::Application
 {
 	void initialize(int _argc, char** _argv) {
-		ImNodes::CreateContext();
-		example::NodeEditorInitialize();
+		ImNodes::CreateContext(0);
+		//example::NodeEditorInitialize();
 	}
 	void onReset() {
 		bgfx::setViewClear( 0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303841ff, 1.0f, 0 );
@@ -26,6 +26,7 @@ class NNGarden : public bigg::Application
 	}
 
 	bool graph_open = true;
+	bool functions_open = true;
 	bool demo_open = false;
 	bool perf_open = false;
 
@@ -49,6 +50,7 @@ class NNGarden : public bigg::Application
 		if (ImGui::BeginMenu("Window"))
 		{
 			ImGui::MenuItem("Graph Window", "", &graph_open);
+			ImGui::MenuItem("Functions", "", &functions_open);
 			ImGui::MenuItem("Demo Window", "", &demo_open);
 			ImGui::MenuItem("Performance", "", &perf_open);
 
@@ -68,6 +70,7 @@ class NNGarden : public bigg::Application
 
 		//example::NodeEditorShow(dt, &graph_open);
 
+		show_function_list(&functions_open);
 		show_graph_editor(&graph_open);
 		
 

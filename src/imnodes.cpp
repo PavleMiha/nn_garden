@@ -32,6 +32,7 @@
 #include <stdlib.h>
 #include <string.h> // strlen, strncmp
 
+ImNodesContext* GImNodesCtxts[128] = {};
 ImNodesContext* GImNodes = NULL;
 
 namespace IMNODES_NAMESPACE
@@ -1728,12 +1729,12 @@ void Initialize(ImNodesContext* context)
     context->CurrentNodeIdx = INT_MAX;
 
     context->DefaultEditorCtx = EditorContextCreate();
-    EditorContextSet(GImNodes->DefaultEditorCtx);
+    context->EditorCtx = context->DefaultEditorCtx;
 
     context->CurrentAttributeFlags = ImNodesAttributeFlags_None;
-    context->AttributeFlagStack.push_back(GImNodes->CurrentAttributeFlags);
+    context->AttributeFlagStack.push_back(context->CurrentAttributeFlags);
 
-    StyleColorsDark();
+    //StyleColorsDark();
 }
 
 void Shutdown(ImNodesContext* ctx) { EditorContextFree(ctx->DefaultEditorCtx); }
@@ -2079,23 +2080,23 @@ ImNodesStyle::ImNodesStyle()
 
 namespace IMNODES_NAMESPACE
 {
-ImNodesContext* CreateContext()
+ImNodesContext* CreateContext(const int node_id)
 {
     ImNodesContext* ctx = IM_NEW(ImNodesContext)();
-    if (GImNodes == NULL)
-        SetCurrentContext(ctx);
     Initialize(ctx);
+    GImNodesCtxts[node_id] = ctx;
+
     return ctx;
 }
 
-void DestroyContext(ImNodesContext* ctx)
+void DestroyContext(const int node_id)
 {
-    if (ctx == NULL)
-        ctx = GImNodes;
+    ImNodesContext* ctx = GImNodesCtxts[node_id];
     Shutdown(ctx);
     if (GImNodes == ctx)
         SetCurrentContext(NULL);
     IM_DELETE(ctx);
+    GImNodesCtxts[node_id] = nullptr;
 }
 
 ImNodesContext* GetCurrentContext() { return GImNodes; }
@@ -2316,8 +2317,9 @@ void StyleColorsLight()
     GImNodes->Style.Colors[ImNodesCol_MiniMapCanvasOutline] = IM_COL32(200, 200, 200, 200);
 }
 
-void BeginNodeEditor()
+void BeginNodeEditor(const int editor_id)
 {
+    GImNodes = GImNodesCtxts[editor_id];
     assert(GImNodes->CurrentScope == ImNodesScope_None);
     GImNodes->CurrentScope = ImNodesScope_Editor;
 

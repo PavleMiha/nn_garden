@@ -325,7 +325,7 @@ public:
             ImGui::PopStyleVar();
         }
 
-        ImNodes::BeginNodeEditor();
+        ImNodes::BeginNodeEditor(0);
 
         for (const UiNode& node : nodes_)
         {

@@ -227,8 +227,8 @@ namespace IMNODES_NAMESPACE
 // function sets the GImGui global variable, which is not shared across dll boundaries.
 void SetImGuiContext(ImGuiContext* ctx);
 
-ImNodesContext* CreateContext();
-void            DestroyContext(ImNodesContext* ctx = NULL); // NULL = destroy current context
+ImNodesContext* CreateContext(const int editor_id);
+void            DestroyContext(const int editor_id); // NULL = destroy current context
 ImNodesContext* GetCurrentContext();
 void            SetCurrentContext(ImNodesContext* ctx);
 
@@ -253,7 +253,7 @@ void StyleColorsLight();
 
 // The top-level function call. Call this before calling BeginNode/EndNode. Calling this function
 // will result the node editor grid workspace being rendered.
-void BeginNodeEditor();
+void BeginNodeEditor(const int editor_id);
 void EndNodeEditor();
 
 // Add a navigable minimap to the editor; call before EndNodeEditor after all
