@@ -18,6 +18,8 @@ class NNGarden : public bigg::Application
 {
 	void initialize(int _argc, char** _argv) {
 		ImNodes::CreateContext(0);
+		//load("graph.json");
+
 		//example::NodeEditorInitialize();
 	}
 	void onReset() {
@@ -25,6 +27,7 @@ class NNGarden : public bigg::Application
 		bgfx::setViewRect( 0, 0, 0, uint16_t( getWidth() ), uint16_t( getHeight() ) );
 	}
 
+	int  frame_count = 0;
 	bool graph_open = true;
 	bool functions_open = true;
 	bool demo_open = false;
@@ -32,10 +35,17 @@ class NNGarden : public bigg::Application
 
 	void update( float dt ) {
 		bgfx::touch( 0 );
+		if (frame_count == 1) {
+			load("graph.json");
+		}
+
+		frame_count++;
+
 		ImGui::BeginMainMenuBar();
 
 		if (ImGui::BeginMenu("File"))
 		{
+
 			if (ImGui::MenuItem("Save")) {
 				save("graph.json");
 			}

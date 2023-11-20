@@ -22,6 +22,8 @@ enum class Operation {
 	Divide,
 	Power,
 	Function,
+	FunctionInput,
+	FunctionOutput,
 	None,
 };
 
@@ -63,8 +65,8 @@ public:
 		j["operation"] = m_operation;
 		for (int i = 0; i < NUM_INPUTS; i++) {
 			if (m_inputs[i].index != NULL_INDEX) {
-				j["inputs"][i]["index"] = m_inputs[i].index;
-				j["inputs"][i]["input_slot"] = m_inputs[i].input_slot;
+				j["inputs"][i]["index"]		  = m_inputs[i].index;
+				j["inputs"][i]["input_slot"]  = m_inputs[i].input_slot;
 				j["inputs"][i]["output_slot"] = m_inputs[i].output_slot;
 			}
 		}
@@ -197,6 +199,18 @@ public:
 	static Value make_value() {
 		Value value;
 		value.m_operation = Operation::None;
+		return value;
+	}
+
+	static Value make_function_input() {
+		Value value;
+		value.m_operation = Operation::FunctionInput;
+		return value;
+	}
+
+	static Value make_function_output() {
+		Value value;
+		value.m_operation = Operation::FunctionOutput;
 		return value;
 	}
 
@@ -373,7 +387,7 @@ public:
 		function.m_id = functions.size();
 		function.m_json = json_data;
 		functions.push_back(function);
-		printf("%s", function.m_json.dump(4).c_str());
+		printf("FUNCTION: %s", function.m_json.dump(4).c_str());
 
 		int function_id = function.m_id;
 
@@ -520,10 +534,50 @@ public:
 		nlohmann::json j;
 		map<Index, int> index_to_json_index;
 		for (int i = 0; i < num; i++) {
+			index_to_json_index[indices[i]] = next_json_index++;
+		}
+
+		std::vector<Index> unmatched_inputs;
+		std::vector<Index> unmatched_outputs;
+
+		int replacement_input = num;
+
+		for (int i = 0; i < num; i++) {
 			j["nodes"].push_back(values[indices[i]].to_json());
+			j["nodes"][i]["index"] = index_to_json_index[indices[i]];
+		
+			for (auto& it : j["nodes"][i]["inputs"]) {
+				if (index_to_json_index.find((Index)it["index"]) == index_to_json_index.end()) {
+					unmatched_inputs.push_back(replacement_input);
+					it["index"] = replacement_input++;
+				}
+			}
+
 			ImVec2 pos = ImNodes::GetNodeGridSpacePos(indices[i]);
 			j["offsets"].push_back({ pos.x - origin.x, pos.y - origin.y });
 		}
+
+		for (int i = 0; i < MAX_NODES; i++) {
+			if (used[i]) {
+				for (int j = 0; j < NUM_INPUTS; j++) {
+					if (values[i].m_inputs[j].index != NULL_INDEX) {
+						if (index_to_json_index.find(values[i].m_inputs[j].index) != index_to_json_index.end()) {
+							unmatched_outputs.push_back(index_to_json_index[i]);
+						}
+					}
+				}
+			}
+		}
+
+		for (const auto& it : unmatched_inputs) {
+			j["unmatched_inputs"].push_back(index_to_json_index[it]);
+		}
+
+		for (const auto& it : unmatched_outputs) {
+			j["unmatched_outputs"].push_back(it);
+		}
+
+		printf("TO_JSON: %s\n", j.dump(4).c_str());
 		return j;
 	}
 
@@ -1246,6 +1300,10 @@ public:
 					ImNodes::CreateContext(function_id + 1);
 					function_graphs[function_id].clear();
 					function_graphs[function_id].from_json(functions[function_id].m_json, ImVec2());
+					EditOperation op = EditOperation::add_node(Value::make_function_input(), ImVec2());
+					function_graphs[function_id].apply_operation(op);
+					op = EditOperation::add_node(Value::make_function_output(), ImVec2());
+					function_graphs[function_id].apply_operation(op);
 				}
 				char name[128];
 				sprintf(name, "Function ID %i", function_id);
@@ -1265,7 +1323,9 @@ public:
 	}
 
 	void load(const char* filename) {
+		//ImNodes::BeginNodeEditor(0);
 		main_graph.load(filename);
+		//ImNodes::EndNodeEditor();
 	}
 };
 
