@@ -15,21 +15,26 @@ target_link_libraries( bigg PUBLIC bgfx imgui glfw glm clip )
 target_include_directories( bigg PUBLIC bigg/include )
 
 set(SOURCE_FILES
-	src/value.cpp
 	src/imnodes.cpp
-	src/color_node_editor.cpp
-	src/graph_editor.cpp
 	src/imgui_canvas.cpp
+
+	src/value.cpp
+	src/edit_operation.cpp
+	src/computation_graph.cpp
+	src/context.cpp
 )
 
 set(HEADER_FILES
-	include/value.h
 	include/imnodes.h
 	include/imnodes_internal.h
-	include/node_editor.h
-	include/graph.h
-	include/graph_editor.h
-	include/json.hpp)
+
+	include/value.h
+	include/edit_operation.h
+	include/computation_graph.h
+	include/context.h
+
+	include/json.hpp
+)
 
 include_directories(include deps/imgui deps/clip)
 

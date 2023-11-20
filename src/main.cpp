@@ -11,27 +11,46 @@
 #include <imnodes.h>
 #include "imgui.h"
 #include "node_editor.h"
-#include "graph_editor.h"
+#include "context.h"
 #include "imgui_canvas.h"
+
 
 class NNGarden : public bigg::Application
 {
-	void initialize(int _argc, char** _argv) {
-		ImNodes::CreateContext(0);
-		//load("graph.json");
-
-		//example::NodeEditorInitialize();
-	}
 	void onReset() {
 		bgfx::setViewClear( 0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303841ff, 1.0f, 0 );
 		bgfx::setViewRect( 0, 0, 0, uint16_t( getWidth() ), uint16_t( getHeight() ) );
 	}
+	Context s_context;
 
 	int  frame_count = 0;
 	bool graph_open = true;
 	bool functions_open = true;
 	bool demo_open = false;
 	bool perf_open = false;
+
+	void show_function_list(bool* open) {
+		s_context.show_function_list(open);
+	}
+
+	void show_graph_editor(bool* open) {
+		s_context.show(open);
+	}
+
+	void save(const char* filename) {
+		s_context.save(filename);
+	}
+
+	void load(const char* filename) {
+		s_context.load(filename);
+	}
+
+	void initialize(int _argc, char** _argv) {
+		ImNodes::CreateContext(0);
+		//load("graph.json");
+
+		//example::NodeEditorInitialize();
+	}
 
 	void update( float dt ) {
 		bgfx::touch( 0 );
@@ -96,10 +115,14 @@ class NNGarden : public bigg::Application
 	}
 public:
 	NNGarden()
-		: bigg::Application( "NNGarden" ) {}
+		: bigg::Application( "NNGarden" ) {
+		printf("NNGarden constructor\n");
+
+	}
 };
 
+NNGarden app;
+
 int main( int argc, char** argv ) {
-	NNGarden app;
 	return app.run( argc, argv );
 }

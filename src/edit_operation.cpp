@@ -1,0 +1,115 @@
+#include "edit_operation.h"
+#include "computation_graph.h"
+void EditOperation::apply(ComputationGraph* context) {
+	switch (m_type) {
+	case EditOperationType::AddNode:
+	{
+		Index index = m_value.m_index;
+		if (index == NULL_INDEX)
+			index = context->get_new_value();
+		context->values[index] = m_value;
+		context->values[index].m_index = index;
+		m_value.m_index = index;
+		m_index = index;
+		ImNodes::SetNodeGridSpacePos(index, m_position);
+	}
+	break;
+	case EditOperationType::RemoveNode:
+		m_value = context->values[m_index];
+		m_position = ImNodes::GetNodeGridSpacePos(m_index);
+		context->values[m_index] = Value();
+		context->used[m_index] = false;
+		break;
+	case EditOperationType::AddLink:
+		context->values[m_index].m_inputs[m_connection.input_slot] = m_connection;
+		break;
+	case EditOperationType::RemoveLink:
+		context->values[m_index].m_inputs[m_connection.input_slot].index = NULL_INDEX;
+		break;
+	case EditOperationType::MoveNodes:
+		ImNodes::SetNodeGridSpacePos(m_index, ImNodes::GetNodeGridSpacePos(m_index) + m_pos_delta);
+		break;
+	case EditOperationType::SetBackwardsNode:
+		m_previousIndex = context->current_backwards_node;
+		context->current_backwards_node = m_index;
+		break;
+	default:
+		break;
+	}
+}
+
+void EditOperation::undo(ComputationGraph* context) {
+	switch (m_type) {
+	case EditOperationType::AddNode:
+		context->values[m_index] = Value();
+		break;
+	case EditOperationType::RemoveNode:
+	{
+		Index index = m_value.m_index;
+		context->values[index] = m_value;
+		context->values[index].m_index = index;
+		m_value.m_index = index;
+		context->used[index] = true;
+		ImNodes::SetNodeGridSpacePos(index, m_position);
+	}
+	break;
+	case EditOperationType::AddLink:
+		context->values[m_index].m_inputs[m_connection.input_slot].index = NULL_INDEX;
+		break;
+	case EditOperationType::RemoveLink:
+		context->values[m_index].m_inputs[m_connection.input_slot].index = m_connection.index;
+		break;
+	case EditOperationType::MoveNodes:
+		ImNodes::SetNodeGridSpacePos(m_index, ImNodes::GetNodeGridSpacePos(m_index) - m_pos_delta);
+		break;
+	case EditOperationType::SetBackwardsNode:
+		context->current_backwards_node = m_previousIndex;
+		break;
+	}
+}
+
+EditOperation EditOperation::add_node(const Value& value, const ImVec2& pos, const bool _final) {
+	EditOperation op;
+	op.m_type = EditOperationType::AddNode;
+	op.m_value = value;
+	op.m_position = pos;
+	op.m_final = _final;
+	return op;
+}
+
+EditOperation EditOperation::remove_node(const Index index, const bool _final) {
+	EditOperation op;
+	op.m_type = EditOperationType::RemoveNode;
+	op.m_index = index;
+	op.m_final = _final;
+	return op;
+}
+
+EditOperation EditOperation::add_link(const Connection& connection,
+	const Index index, const bool _final) {
+	EditOperation op;
+	op.m_type = EditOperationType::AddLink;
+	op.m_index = index;
+	op.m_connection = connection;
+	op.m_final = _final;
+	return op;
+}
+
+EditOperation EditOperation::remove_link(const Connection& connection,
+	const Index index, const bool _final) {
+	EditOperation op;
+	op.m_type = EditOperationType::RemoveLink;
+	op.m_index = index;
+	op.m_connection = connection;
+	op.m_final = _final;
+	return op;
+}
+
+EditOperation EditOperation::move_node(const Index index, const ImVec2& delta, const bool _final) {
+	EditOperation op;
+	op.m_type = EditOperationType::MoveNodes;
+	op.m_index = index;
+	op.m_pos_delta = delta;
+	op.m_final = _final;
+	return op;
+}
