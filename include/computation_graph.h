@@ -84,6 +84,8 @@ public:
 
 	unsigned get_attribute_output_index(Index i, unsigned output);
 
+	void show_node(Index i, vector<Function>& functions);
+
 	void show(const int editor_id, bool* open, std::vector<Function>& functions, const char* name);
 
 	bool selected = false;

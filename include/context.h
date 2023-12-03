@@ -20,6 +20,8 @@ public:
 
 	void show_function_list(bool* open);
 
+	void create_function_graph(int function_index);
+
 	void show(bool* open);
 
 	void save(const char* filename);

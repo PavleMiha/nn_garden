@@ -47,15 +47,12 @@ class NNGarden : public bigg::Application
 
 	void initialize(int _argc, char** _argv) {
 		ImNodes::CreateContext(0);
-		//load("graph.json");
-
-		//example::NodeEditorInitialize();
+		load("graph.json");
 	}
 
 	void update( float dt ) {
 		bgfx::touch( 0 );
-		if (frame_count == 1) {
-			load("graph.json");
+		if (frame_count == 0) {
 		}
 
 		frame_count++;

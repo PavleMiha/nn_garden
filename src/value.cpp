@@ -1,6 +1,6 @@
 #include "value.h"
 
-#define NUM_INPUTS 2
+#define MAX_INPUTS 2
 
 json Value::to_json() {
 	json j;
@@ -8,7 +8,7 @@ json Value::to_json() {
 	j["value"] = m_value;
 	j["gradient"] = m_gradient;
 	j["operation"] = m_operation;
-	for (int i = 0; i < NUM_INPUTS; i++) {
+	for (int i = 0; i < MAX_INPUTS; i++) {
 		if (m_inputs[i].index != NULL_INDEX) {
 			j["inputs"][i]["index"] = m_inputs[i].index;
 			j["inputs"][i]["input_slot"] = m_inputs[i].input_slot;

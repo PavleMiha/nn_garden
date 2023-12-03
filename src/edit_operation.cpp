@@ -11,12 +11,10 @@ void EditOperation::apply(ComputationGraph* context) {
 		context->values[index].m_index = index;
 		m_value.m_index = index;
 		m_index = index;
-		ImNodes::SetNodeGridSpacePos(index, m_position);
 	}
 	break;
 	case EditOperationType::RemoveNode:
 		m_value = context->values[m_index];
-		m_position = ImNodes::GetNodeGridSpacePos(m_index);
 		context->values[m_index] = Value();
 		context->used[m_index] = false;
 		break;
@@ -27,7 +25,7 @@ void EditOperation::apply(ComputationGraph* context) {
 		context->values[m_index].m_inputs[m_connection.input_slot].index = NULL_INDEX;
 		break;
 	case EditOperationType::MoveNodes:
-		ImNodes::SetNodeGridSpacePos(m_index, ImNodes::GetNodeGridSpacePos(m_index) + m_pos_delta);
+		context->values[m_index].m_position += m_pos_delta;
 		break;
 	case EditOperationType::SetBackwardsNode:
 		m_previousIndex = context->current_backwards_node;
@@ -50,7 +48,6 @@ void EditOperation::undo(ComputationGraph* context) {
 		context->values[index].m_index = index;
 		m_value.m_index = index;
 		context->used[index] = true;
-		ImNodes::SetNodeGridSpacePos(index, m_position);
 	}
 	break;
 	case EditOperationType::AddLink:
@@ -60,7 +57,8 @@ void EditOperation::undo(ComputationGraph* context) {
 		context->values[m_index].m_inputs[m_connection.input_slot].index = m_connection.index;
 		break;
 	case EditOperationType::MoveNodes:
-		ImNodes::SetNodeGridSpacePos(m_index, ImNodes::GetNodeGridSpacePos(m_index) - m_pos_delta);
+		context->values[m_index].m_position -= m_pos_delta;
+		context->values[m_index].m_positionDirty = true;
 		break;
 	case EditOperationType::SetBackwardsNode:
 		context->current_backwards_node = m_previousIndex;
@@ -68,11 +66,10 @@ void EditOperation::undo(ComputationGraph* context) {
 	}
 }
 
-EditOperation EditOperation::add_node(const Value& value, const ImVec2& pos, const bool _final) {
+EditOperation EditOperation::add_node(const Value& value, const bool _final) {
 	EditOperation op;
 	op.m_type = EditOperationType::AddNode;
 	op.m_value = value;
-	op.m_position = pos;
 	op.m_final = _final;
 	return op;
 }

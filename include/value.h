@@ -47,15 +47,17 @@ public:
 	vector<Connection>	   m_function_output_nodes;
 };
 
-#define NUM_INPUTS 2
+#define MAX_INPUTS 2
 
 class Value {
 public:
 	Index			   m_index{ NULL_INDEX };
 	float			   m_value{ 0.f };
+	ImVec2			   m_position;
+	bool			   m_positionDirty{ true };
 	float			   m_gradient{ 0.f };
 	Operation		   m_operation{ Operation::None };
-	Connection		   m_inputs[NUM_INPUTS];
+	Connection		   m_inputs[MAX_INPUTS];
 	Index			   m_parent{ NULL_INDEX };
 
 	json to_json();

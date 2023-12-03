@@ -20,13 +20,12 @@ public:
 	Index			  m_index;
 	Index			  m_previousIndex;
 	Connection		  m_connection;
-	ImVec2			  m_position;
 	ImVec2			  m_pos_delta;
 	bool			  m_final;
 
 	void EditOperation::apply(ComputationGraph* context);
 	void EditOperation::undo(ComputationGraph* context);
-	static EditOperation add_node(const Value& value, const ImVec2& pos, const bool _final = true);
+	static EditOperation add_node(const Value& value, const bool _final = true);
 	static EditOperation remove_node(const Index index, const bool _final = true);
 	static EditOperation add_link(const Connection& connection, const Index index, const bool _final = true);
 	static EditOperation remove_link(const Connection& connection, const Index index, const bool _final = true);

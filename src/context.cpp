@@ -27,18 +27,40 @@ void Context::show_function_list(bool* open) {
 	}
 }
 
+void Context::create_function_graph(int function_id) {
+	ImNodes::CreateContext(function_id + 1);
+	function_graphs[function_id].clear();
+	function_graphs[function_id].from_json(functions[function_id].m_json, ImVec2());
+	
+	Index input_node_index = function_graphs[function_id].get_new_value();
+	function_graphs[function_id].values[input_node_index].m_operation = Operation::FunctionInput;
+	Index output_node_index = function_graphs[function_id].get_new_value();
+	function_graphs[function_id].values[output_node_index].m_operation = Operation::FunctionOutput;
+
+	int num_nodes = functions[function_id].m_json["nodes"].size();
+
+	for (auto& node : functions[function_id].m_json["nodes"]) {
+		for (int i = 0; i < node["inputs"].size(); i++) {
+			if (node["inputs"][i]["index"] >= num_nodes) {
+				Connection& input = function_graphs[function_id].values[node["index"]].m_inputs[i];
+				input.index = input_node_index;
+				input.input_slot = node["inputs"][i]["input_slot"];
+				input.output_slot = node["inputs"][i]["index"]-num_nodes;
+			}
+		}
+	}
+
+	for (int i = 0; i < functions[function_id].m_json["unmatched_outputs"].size(); i++) {
+		function_graphs[function_id].values[output_node_index].m_inputs[i].index = functions[function_id].m_json["unmatched_outputs"][i]["index"];
+	}
+}
+
 void Context::show(bool* open) {
 	main_graph.show(0, open, functions, "main graph");
 	for (int function_id = 0; function_id < functions.size(); function_id++) {
 		if (functions[function_id].m_is_open) {
 			if (function_graphs.find(function_id) == function_graphs.end()) {
-				ImNodes::CreateContext(function_id + 1);
-				function_graphs[function_id].clear();
-				function_graphs[function_id].from_json(functions[function_id].m_json, ImVec2());
-				EditOperation op = EditOperation::add_node(Value::make_function_input(), ImVec2());
-				function_graphs[function_id].apply_operation(op);
-				op = EditOperation::add_node(Value::make_function_output(), ImVec2());
-				function_graphs[function_id].apply_operation(op);
+				create_function_graph(function_id);
 			}
 			char name[128];
 			sprintf(name, "Function ID %i", function_id);
