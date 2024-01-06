@@ -20,6 +20,8 @@ public:
 	char		m_name[128]{ "" };
 	unsigned	m_id{ 0 };
 	json		m_json;
+	int			m_num_inputs;
+	int			m_num_outputs;
 	bool		m_is_open{ false };
 };
 
@@ -44,9 +46,13 @@ public:
 		clear();
 	}
 
-	void collapse_selected_nodes_to_function(const ImVec2& origin, vector<Function>& functions);
+	void collapse_selected_nodes_to_new_function(const ImVec2& origin, vector<Function>& functions);
 
-	void collapse_to_function(int* indices, size_t num_indices, ImVec2 pos, vector<Function>& functions);
+	void collapse_to_new_function(Index* indices, size_t num_indices, ImVec2 pos, vector<Function>& functions);
+
+	Index collapse_to_function(Index* indices, size_t num_indices, ImVec2 pos, int function_id);
+
+	Index instantiate_function(int function_id, const ImVec2& pos, const vector<Function>& functions);
 
 	Index get_new_value();
 
@@ -58,9 +64,15 @@ public:
 
 	Value& get_value(Index index);
 
-	void from_json(const json& json, const ImVec2& origin);
+	struct FromJsonAdditionalData {
+		vector<Index> indices;
+		vector<Connection> unmatched_inputs;
+		vector<Connection> unmatched_outputs;
+	};
 
-	json to_json(int* indices, const ImVec2& origin, int num);
+	void from_json(const json& json, const ImVec2& origin, FromJsonAdditionalData* additional_data = nullptr);
+
+	json to_json(Index* indices, const ImVec2& origin, int num);
 
 	void add_operation_without_applying(EditOperation& operation);
 
@@ -85,6 +97,10 @@ public:
 	unsigned get_attribute_output_index(Index i, unsigned output);
 
 	void show_node(Index i, vector<Function>& functions);
+
+	void show_connections(Index i, vector<Function>& functions);
+
+	void create_connection(Connection connection);
 
 	void show(const int editor_id, bool* open, std::vector<Function>& functions, const char* name);
 

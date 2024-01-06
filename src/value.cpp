@@ -9,10 +9,11 @@ json Value::to_json() {
 	j["gradient"] = m_gradient;
 	j["operation"] = m_operation;
 	for (int i = 0; i < MAX_INPUTS; i++) {
-		if (m_inputs[i].index != NULL_INDEX) {
-			j["inputs"][i]["index"] = m_inputs[i].index;
-			j["inputs"][i]["input_slot"] = m_inputs[i].input_slot;
-			j["inputs"][i]["output_slot"] = m_inputs[i].output_slot;
+		if (m_inputs[i].end != NULL_INDEX) {
+			j["inputs"][i]["end"]		 = m_inputs[i].end;
+			j["inputs"][i]["end_slot"]   = m_inputs[i].end_slot;
+			j["inputs"][i]["start"]      = m_inputs[i].start;
+			j["inputs"][i]["start_slot"] = m_inputs[i].start_slot;
 		}
 	}
 	return j;
@@ -24,10 +25,11 @@ void Value::from_json(json j) {
 	m_gradient = j["gradient"];
 	m_operation = j["operation"];
 	for (int i = 0; i < j["inputs"].size(); i++) {
-		int slot = j["inputs"][i]["input_slot"];
-		m_inputs[slot].index = j["inputs"][i]["index"];
-		m_inputs[slot].input_slot = j["inputs"][i]["input_slot"];
-		m_inputs[slot].output_slot = j["inputs"][i]["output_slot"];
+		int slot = j["inputs"][i]["end_slot"];
+		m_inputs[slot].end		  = j["inputs"][i]["end"];
+		m_inputs[slot].end_slot   = j["inputs"][i]["end_slot"];
+		m_inputs[slot].start	  = j["inputs"][i]["start"];
+		m_inputs[slot].start_slot = j["inputs"][i]["start_slot"];
 	}
 }
 
@@ -44,8 +46,8 @@ vector<Index> Value::get_topological_sorted_descendants_inner(unordered_set<Inde
 	vector<Index> sorted_descendants;
 	visited.insert(m_index);
 	for (const auto& input : m_inputs) {
-		if (input.index != NULL_INDEX) {
-			vector<Index> m_parent1_descendants = values[input.index].get_topological_sorted_descendants_inner(visited, values);
+		if (input.start != NULL_INDEX) {
+			vector<Index> m_parent1_descendants = values[input.start].get_topological_sorted_descendants_inner(visited, values);
 			sorted_descendants.insert(sorted_descendants.end(), m_parent1_descendants.begin(), m_parent1_descendants.end());
 		}
 	}
@@ -56,24 +58,24 @@ vector<Index> Value::get_topological_sorted_descendants_inner(unordered_set<Inde
 void Value::single_forwards(Value* values) {
 	switch (m_operation) {
 	case Operation::Add:
-		if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
-			m_value = values[m_inputs[0].index].m_value + values[m_inputs[1].index].m_value;
+		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
+			m_value = values[m_inputs[0].start].m_value + values[m_inputs[1].start].m_value;
 		break;
 	case Operation::Multiply:
-		if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
-			m_value = values[m_inputs[0].index].m_value * values[m_inputs[1].index].m_value;
+		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
+			m_value = values[m_inputs[0].start].m_value * values[m_inputs[1].start].m_value;
 		break;
 	case Operation::Subtract:
-		if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
-			m_value = values[m_inputs[0].index].m_value - values[m_inputs[1].index].m_value;
+		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
+			m_value = values[m_inputs[0].start].m_value - values[m_inputs[1].start].m_value;
 		break;
 	case Operation::Divide:
-		if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
-			m_value = values[m_inputs[0].index].m_value / values[m_inputs[1].index].m_value;
+		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
+			m_value = values[m_inputs[0].start].m_value / values[m_inputs[1].start].m_value;
 		break;
 	case Operation::Power:
-		if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX)
-			m_value = pow(values[m_inputs[0].index].m_value, values[m_inputs[1].index].m_value);
+		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
+			m_value = pow(values[m_inputs[0].start].m_value, values[m_inputs[1].start].m_value);
 		break;
 	default:
 		//assert((false && "Unknown operation"));
@@ -84,33 +86,36 @@ void Value::single_forwards(Value* values) {
 void Value::single_backwards(Value* values) {
 	switch (m_operation) {
 	case Operation::Add:
-		if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
-			values[m_inputs[0].index].m_gradient += m_gradient;
-			values[m_inputs[1].index].m_gradient += m_gradient;
+		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX) {
+			values[m_inputs[0].start].m_gradient += m_gradient;
+			values[m_inputs[1].start].m_gradient += m_gradient;
 		}
 		break;
 	case Operation::Multiply:
-		if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
-			values[m_inputs[0].index].m_gradient += m_gradient * values[m_inputs[1].index].m_value;
-			values[m_inputs[1].index].m_gradient += m_gradient * values[m_inputs[0].index].m_value;
+		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX) {
+			values[m_inputs[0].start].m_gradient += m_gradient * values[m_inputs[1].start].m_value;
+			values[m_inputs[1].start].m_gradient += m_gradient * values[m_inputs[0].start].m_value;
 		}
 		break;
 	case Operation::Subtract:
-		if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
-			values[m_inputs[0].index].m_gradient += m_gradient;
-			values[m_inputs[1].index].m_gradient -= m_gradient;
+		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX) {
+			values[m_inputs[0].start].m_gradient += m_gradient;
+			values[m_inputs[1].start].m_gradient -= m_gradient;
 		}
 		break;
 	case Operation::Divide:
-		if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
-			values[m_inputs[0].index].m_gradient += m_gradient / values[m_inputs[1].index].m_value;
-			values[m_inputs[1].index].m_gradient -= m_gradient * values[m_inputs[0].index].m_value / (values[m_inputs[1].index].m_value * values[m_inputs[1].index].m_value);
+		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX) {
+			values[m_inputs[0].start].m_gradient += m_gradient / values[m_inputs[1].start].m_value;
+			values[m_inputs[1].start].m_gradient -= m_gradient * values[m_inputs[0].start].m_value /
+				(values[m_inputs[1].start].m_value * values[m_inputs[1].start].m_value);
 		}
 		break;
 	case Operation::Power:
-		if (m_inputs[0].index != NULL_INDEX && m_inputs[1].index != NULL_INDEX) {
-			values[m_inputs[0].index].m_gradient += m_gradient * values[m_inputs[1].index].m_value * pow(values[m_inputs[0].index].m_value, values[m_inputs[1].index].m_value - 1);
-			values[m_inputs[1].index].m_gradient += m_gradient * pow(values[m_inputs[0].index].m_value, values[m_inputs[1].index].m_value) * log(values[m_inputs[0].index].m_value);
+		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX) {
+			values[m_inputs[0].start].m_gradient += m_gradient * values[m_inputs[1].start].m_value *
+				pow(values[m_inputs[0].start].m_value, values[m_inputs[1].start].m_value - 1);
+			values[m_inputs[1].start].m_gradient += m_gradient * pow(values[m_inputs[0].start].m_value,
+				values[m_inputs[1].start].m_value) * log(values[m_inputs[0].start].m_value);
 		}
 		break;
 	default:

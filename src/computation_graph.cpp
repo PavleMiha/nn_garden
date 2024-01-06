@@ -17,28 +17,47 @@ void ComputationGraph::clear() {
 	edit_operations.clear();
 }
 
-void ComputationGraph::collapse_selected_nodes_to_function(const ImVec2& origin, vector<Function>& functions) {
+void ComputationGraph::collapse_selected_nodes_to_new_function(const ImVec2& origin, vector<Function>& functions) {
 	int num_nodes_selected = ImNodes::NumSelectedNodes();
-	int* selected_nodes = nullptr;
+	Index* selected_nodes = nullptr;
 
 	if (num_nodes_selected > 0) {
-		selected_nodes = new int[num_nodes_selected];
-		ImNodes::GetSelectedNodes(selected_nodes);
-		collapse_to_function(selected_nodes, num_nodes_selected, origin, functions);
+		selected_nodes = new Index[num_nodes_selected];
+		ImNodes::GetSelectedNodes((int*)selected_nodes);
+		collapse_to_new_function(selected_nodes, num_nodes_selected, origin, functions);
 		delete[] selected_nodes;
 	}
 }
 
-void ComputationGraph::collapse_to_function(int* indices, size_t num_indices, ImVec2 pos, vector<Function>& functions) {
+void ComputationGraph::collapse_to_new_function(Index* indices, size_t num_indices, ImVec2 pos, vector<Function>& functions) {
+	json json_data = to_json(indices, pos, num_indices);
+
+	Function function;
+	strcpy(function.m_name, "New function");
+	function.m_id = functions.size();
+	function.m_json = json_data;
+	function.m_num_inputs = function.m_json["unmatched_inputs"].size();
+	function.m_num_outputs = function.m_json["unmatched_outputs"].size();
+	functions.push_back(function);
+	printf("FUNCTION: %s", function.m_json.dump(4).c_str());
+
+	int function_id = function.m_id;
+
+	unordered_set<Index> indices_set;
+
+	Index function_node_index = collapse_to_function(indices, num_indices, pos, function_id);
+}
+
+Index ComputationGraph::collapse_to_function(Index* indices, size_t num_indices, ImVec2 pos, int function_id) {
 	if (num_indices <= 0) {
-		return;
+		return NULL_INDEX;
 	}
 
 	ImVec2 average_pos = ImVec2(0, 0);
 
 	for (int i = 0; i < num_indices; i++) {
-		average_pos.x += ImNodes::GetNodeGridSpacePos(indices[i]).x;
-		average_pos.y += ImNodes::GetNodeGridSpacePos(indices[i]).y;
+		average_pos.x += values[indices[i]].m_position.x;
+		average_pos.y += values[indices[i]].m_position.y;
 	}
 
 	average_pos.x /= num_indices;
@@ -47,32 +66,27 @@ void ComputationGraph::collapse_to_function(int* indices, size_t num_indices, Im
 	Index function_node_index = get_new_value();
 	values[function_node_index].m_operation = Operation::Function;
 	values[function_node_index].m_position = average_pos;
+	
+	for (int i = 0; i < num_indices; i++) {
+		values[indices[i]].m_parent = function_node_index;
+	}
+
 	unordered_set<Index> indices_set;
 
 	for (int i = 0; i < num_indices; i++) {
 		indices_set.insert(indices[i]);
 	}
 
-	json json_data = to_json(indices, pos, num_indices);
-
-	Function function;
-	strcpy(function.m_name, "New function");
-	function.m_id = functions.size();
-	function.m_json = json_data;
-	functions.push_back(function);
-	printf("FUNCTION: %s", function.m_json.dump(4).c_str());
-
-	int function_id = function.m_id;
-
-	//find inputs
-
 	for (int i = 0; i < num_indices; i++) {
 		for (int j = 0; j < MAX_INPUTS; j++) {
-			if (values[indices[i]].m_inputs[j].index != NULL_INDEX) {
-				if (indices_set.find(values[indices[i]].m_inputs[j].index) == indices_set.end()) {
+			if (values[indices[i]].m_inputs[j].start != NULL_INDEX) {
+				if (indices_set.find(values[indices[i]].m_inputs[j].start) == indices_set.end()) {
 					Connection connection;
-					connection.index = values[indices[i]].m_index;
-					connection.input_slot = j;
+					connection.start =		values[indices[i]].m_inputs[j].start;
+					connection.start_slot = values[indices[i]].m_inputs[j].start_slot;
+					connection.end =		function_node_index;
+					connection.end_slot =	function_node_data[function_node_index].m_function_input_nodes.size();
+
 					function_node_data[function_node_index].m_function_input_nodes.push_back(connection);
 				}
 			}
@@ -83,9 +97,13 @@ void ComputationGraph::collapse_to_function(int* indices, size_t num_indices, Im
 		if (used[i]) {
 			if (indices_set.find(values[i].m_index) == indices_set.end()) {
 				for (int j = 0; j < MAX_INPUTS; j++) {
-					if (indices_set.find(values[i].m_inputs[j].index) != indices_set.end()) {
+					if (indices_set.find(values[i].m_inputs[j].start) != indices_set.end()) {
 						Connection connection;
-						connection.index = values[i].m_inputs[j].index;
+						connection.start =		values[i].m_inputs[j].start;
+						connection.start_slot = function_node_data[function_node_index].m_function_output_nodes.size();
+						connection.end =		i;
+						connection.end_slot =	j;
+
 						function_node_data[function_node_index].m_function_output_nodes.push_back(connection);
 					}
 				}
@@ -93,12 +111,20 @@ void ComputationGraph::collapse_to_function(int* indices, size_t num_indices, Im
 		}
 	}
 
-	for (int i = 0; i < num_indices; i++) {
-		values[indices[i]].m_parent = function_node_index;
-	}
-
 	function_node_data[function_node_index].m_function_id = function_id;
+
+	return function_node_index;
 }
+
+Index ComputationGraph::instantiate_function(int function_id, const ImVec2& pos, const vector<Function>& functions) {
+	FromJsonAdditionalData additiona_data;
+	from_json(functions[function_id].m_json, pos, &additiona_data);
+
+	Index i = collapse_to_function(&(additiona_data.indices[0]), additiona_data.indices.size(), pos, functions[function_id].m_id);
+
+	return i;
+}
+
 
 Index ComputationGraph::get_new_value() {
 	used[next_free_index] = true;
@@ -113,7 +139,7 @@ void ComputationGraph::delete_value_and_return_removed_connections(Index index, 
 
 	for (int i = 0; i < MAX_NODES; i++) {
 		for (int j = 0; j < MAX_INPUTS; j++) {
-			if (values[i].m_inputs[j].index == index) {
+			if (values[i].m_inputs[j].start == index) {
 				removed_connections.push_back(values[i].m_inputs[j]);
 				values[i].m_inputs[j] = Connection();
 			}
@@ -133,8 +159,8 @@ void ComputationGraph::forwards() {
 		if (used[i]) {
 			checked.insert(i);
 			for (int k = 0; k < MAX_INPUTS; k++) {
-				if (values[i].m_inputs[k].index != NULL_INDEX)
-					has_parent.insert(values[i].m_inputs[k].index);
+				if (values[i].m_inputs[k].start != NULL_INDEX)
+					has_parent.insert(values[i].m_inputs[k].start);
 			}
 		}
 	}
@@ -172,15 +198,35 @@ Value& ComputationGraph::get_value(Index index) {
 	return values[index];
 }
 
-void ComputationGraph::from_json(const json& json, const ImVec2& origin) {
+void ComputationGraph::from_json(const json& json, const ImVec2& origin, FromJsonAdditionalData* additional_data) {
 	if (json["nodes"].size() == 0) {
 		return;
+	}
+
+	if (additional_data != nullptr) {
+		additional_data = new FromJsonAdditionalData;
 	}
 
 	map<Index, Index> json_index_to_index;
 	for (int i = 0; i < json["nodes"].size(); i++) {
 		Index index = get_new_value();
 		json_index_to_index[json["nodes"][i]["index"]] = index;
+		if (additional_data != nullptr)
+		{
+			additional_data->indices.push_back(index);
+
+			bool is_unmatched_input = false;
+			for (auto ui : json["unmatched_inputs"]) {
+				if (ui["json_parent_index"] == json["nodes"][i]["index"]) {
+					is_unmatched_input = true;
+					Connection connection;
+					connection.end = index;
+					connection.end_slot = ui["output_slot"];
+
+					additional_data->unmatched_inputs.push_back(connection);
+				}
+			}
+		}
 	}
 
 	for (int i = 0; i < json["nodes"].size(); i++) {
@@ -189,15 +235,16 @@ void ComputationGraph::from_json(const json& json, const ImVec2& origin) {
 		value.from_json(json["nodes"][i]);
 		value.m_index = json_index_to_index[json_index];
 		for (int j = 0; j < MAX_INPUTS; j++) {
-			if (json_index_to_index.find(value.m_inputs[j].index) == json_index_to_index.end()) {
-				value.m_inputs[j].index = NULL_INDEX;
+			if (json_index_to_index.find(value.m_inputs[j].start) == json_index_to_index.end()) {
+				value.m_inputs[j] = Connection();
 			}
 			else {
-				value.m_inputs[j].index = json_index_to_index[value.m_inputs[j].index];
+				value.m_inputs[j].start = json_index_to_index[value.m_inputs[j].start];
 			}
 		}
 
 		value.m_position = origin + ImVec2(json["offsets"][i][0], json["offsets"][i][1]);
+
 		EditOperation op = EditOperation::add_node(value, false);
 		apply_operation(op);
 	}
@@ -205,7 +252,7 @@ void ComputationGraph::from_json(const json& json, const ImVec2& origin) {
 	edit_operations.back().m_final = true;
 }
 
-json ComputationGraph::to_json(int* indices, const ImVec2& origin, int num) {
+json ComputationGraph::to_json(Index* indices, const ImVec2& origin, int num) {
 	int next_json_index = 0;
 	json j;
 	map<Index, int> index_to_json_index;
@@ -226,31 +273,32 @@ json ComputationGraph::to_json(int* indices, const ImVec2& origin, int num) {
 	}
 
 	for (int i = 0; i < num; i++) {
-		for (auto& it : j["nodes"][i]["inputs"]) {
-			if (index_to_json_index.find((Index)it["index"]) == index_to_json_index.end()) {
+ 		for (auto& it : j["nodes"][i]["inputs"]) {
+			if (index_to_json_index.find((Index)it["start"]) == index_to_json_index.end()) {
 				bool found = false;
 
 				//look for an existing unmatched input, in case there's multiple inputs from the same node
 				for (auto& ui : unmatched_inputs) {
-					if (ui["index"] == it["index"] && ui["output_slot"] == it["output_slot"]) {
+					if (ui["index"] == it["start"] && ui["output_slot"] == it["output_slot"]) {
 						found = true;
-						it["index"] = ui["replacement_index"];
+						it["start"] = ui["replacement_index"];
 						break;
 					}
 				}
 
 				if (!found) {
 					json unmatched_input;
-					unmatched_input["index"] = it["index"];
-					unmatched_input["output_slot"] = it["output_slot"];
+					unmatched_input["index"] = it["start"];
+					unmatched_input["json_parent_index"] = i;
+					unmatched_input["output_slot"] = it["start_slot"];
 					unmatched_input["replacement_index"] = replacement_input_index;
 					unmatched_inputs.push_back(unmatched_input);
-					it["index"] = replacement_input_index++;
+					it["start"] = replacement_input_index++;
 				}
 			}
 			else
 			{
-				it["index"] = index_to_json_index[(Index)it["index"]];
+				it["start"] = index_to_json_index[(Index)it["start"]];
 			}
 		}
 	}
@@ -261,10 +309,10 @@ json ComputationGraph::to_json(int* indices, const ImVec2& origin, int num) {
 		if (used[i]) {
 			if (index_to_json_index.find(i) == index_to_json_index.end()) {
 				for (int j = 0; j < MAX_INPUTS; j++) {
-					if (values[i].m_inputs[j].index != NULL_INDEX) {
-						if (index_to_json_index.find(values[i].m_inputs[j].index) != index_to_json_index.end()) {
+					if (values[i].m_inputs[j].start != NULL_INDEX) {
+						if (index_to_json_index.find(values[i].m_inputs[j].start) != index_to_json_index.end()) {
 							json unmatched_output;
-							unmatched_output["index"] = index_to_json_index[values[i].m_inputs[j].index];
+							unmatched_output["index"] = index_to_json_index[values[i].m_inputs[j].start];
 							unmatched_output["input_slot"] = j;
 							unmatched_output["output_slot"] = unmatched_output_index++;
 
@@ -320,11 +368,11 @@ void ComputationGraph::redo() {
 
 void ComputationGraph::copy_selected_nodes(const ImVec2& origin) {
 	int num_nodes_selected = ImNodes::NumSelectedNodes();
-	int* selected_nodes = nullptr;
+	Index* selected_nodes = nullptr;
 
 	if (num_nodes_selected > 0) {
-		selected_nodes = new int[num_nodes_selected];
-		ImNodes::GetSelectedNodes(selected_nodes);
+		selected_nodes = new Index[num_nodes_selected];
+		ImNodes::GetSelectedNodes((int*)selected_nodes);
 		auto json = to_json(selected_nodes, origin, num_nodes_selected);
 		clip::set_text(json.dump());
 		delete[] selected_nodes;
@@ -351,7 +399,7 @@ void ComputationGraph::delete_selected_nodes() {
 		for (int i = 0; i < num_nodes_selected; i++) {
 			for (int j = 0; j < MAX_NODES; j++) {
 				for (int k = 0; k < MAX_INPUTS; k++) {
-					if (values[j].m_inputs[k].index == selected_nodes[i]) {
+					if (values[j].m_inputs[k].start == selected_nodes[i]) {
 						EditOperation op = EditOperation::remove_link(values[j].m_inputs[k], j, false);
 						apply_operation(op);
 					}
@@ -361,7 +409,7 @@ void ComputationGraph::delete_selected_nodes() {
 
 		for (int i = 0; i < num_nodes_selected; i++) {
 			for (int j = 0; j < MAX_INPUTS; j++) {
-				if (values[selected_nodes[i]].m_inputs[j].index != NULL_INDEX) {
+				if (values[selected_nodes[i]].m_inputs[j].start != NULL_INDEX) {
 					EditOperation op = EditOperation::remove_link(values[selected_nodes[i]].m_inputs[j], selected_nodes[i], false);
 					apply_operation(op);
 				}
@@ -384,7 +432,7 @@ void ComputationGraph::save(const char* filename) {
 		}
 	}
 
-	int* indices = new int[node_count];
+	Index* indices = new Index[node_count];
 
 	node_count = 0;
 	for (int i = 0; i < MAX_NODES; i++) {
@@ -429,11 +477,9 @@ unsigned ComputationGraph::get_attribute_input_index(Index i, unsigned input) {
 		Value& currentValue = values[i];
 
 		for (int input_pin = 0; input_pin < function_node_data[currentValue.m_parent].m_function_input_nodes.size(); input_pin++) {
-			if (function_node_data[currentValue.m_parent].m_function_input_nodes[input_pin].index == currentValue.m_index &&
-				function_node_data[currentValue.m_parent].m_function_input_nodes[input_pin].input_slot == currentValue.m_inputs[input].input_slot) {
+			if (function_node_data[currentValue.m_parent].m_function_input_nodes[input_pin].end == currentValue.m_index &&
+				function_node_data[currentValue.m_parent].m_function_input_nodes[input_pin].end_slot == currentValue.m_inputs[input].start_slot) {
 				return currentValue.m_parent * MAX_CONNECTIONS_PER_NODE + input_pin;
-				//ImNodes::Link(currentValue.m_parent * MAX_CONNECTIONS_PER_NODE + input_pin,
-					//currentValue.m_inputs[input].index * MAX_CONNECTIONS_PER_NODE + values[currentValue.m_inputs[input].index].m_inputs.size(),
 			}
 		}
 	}
@@ -447,8 +493,8 @@ unsigned ComputationGraph::get_attribute_output_index(Index i, unsigned output) 
 		Index parent_index = values[i].m_parent;
 		Value& parentValue = values[parent_index];
 		for (int output_pin = 0; output_pin < function_node_data[parent_index].m_function_output_nodes.size(); output_pin++) {
-			if (function_node_data[parent_index].m_function_output_nodes[output_pin].index == i &&
-				function_node_data[parent_index].m_function_output_nodes[output_pin].output_slot == output) {
+			if (function_node_data[parent_index].m_function_output_nodes[output_pin].start == i &&
+				function_node_data[parent_index].m_function_output_nodes[output_pin].start_slot == output) {
 				return parentValue.m_index * MAX_CONNECTIONS_PER_NODE +
 					function_node_data[parent_index].m_function_input_nodes.size() +
 					output_pin;
@@ -530,81 +576,77 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 	case Operation::Power:
 	case Operation::None:
 	{
-		if (currentValue.m_operation != Operation::Function) {
-			for (int input = 0; input < MAX_INPUTS; input++) {
-				if (currentValue.m_operation != Operation::None) {
-					ImNodes::BeginInputAttribute(attribute_index + input);
+		for (int input = 0; input < 2; input++) {
+			if (currentValue.m_operation != Operation::None) {
+				ImNodes::BeginInputAttribute(attribute_index + input);
+			}
+
+			if (input == 0) {
+				if (currentValue.m_operation == Operation::None) {
+					const float label_width = ImGui::CalcTextSize("value").x;
+
+					ImGui::PushItemWidth(node_width - label_width);
+					ImGui::DragFloat(
+						"##hidelabel", &currentValue.m_value, 0.01f);
+					ImGui::PopItemWidth();
 				}
+				else {
+					char text[128];
+					sprintf(text, "%.1f", currentValue.m_value);
 
-				if (input == 0) {
-					if (currentValue.m_operation == Operation::None) {
-						const float label_width = ImGui::CalcTextSize("value").x;
-
-						ImGui::PushItemWidth(node_width - label_width);
-						ImGui::DragFloat(
-							"##hidelabel", &currentValue.m_value, 0.01f);
-						ImGui::PopItemWidth();
-					}
-					else {
-						char text[128];
-						sprintf(text, "%.1f", currentValue.m_value);
-
-						const float label_width = ImGui::CalcTextSize(text).x;
-						ImGui::Indent(node_width - label_width);
-						ImGui::Text(text);
-					}
-				}
-
-				if (input == 1) {
-					if (currentValue.m_operation != Operation::Function) {
-						char text[128];
-						sprintf(text, "grad %.1f", currentValue.m_gradient);
-
-						const float label_width = ImGui::CalcTextSize(text).x;
-						ImGui::Indent(node_width - label_width);
-						ImGui::Text(text, currentValue.m_gradient);
-					}
-				}
-				if (currentValue.m_operation != Operation::None) {
-					ImNodes::EndInputAttribute();
+					const float label_width = ImGui::CalcTextSize(text).x;
+					ImGui::Indent(node_width - label_width);
+					ImGui::Text(text);
 				}
 			}
 
-			ImNodes::BeginOutputAttribute(attribute_index + MAX_INPUTS);
-			ImNodes::EndOutputAttribute();
+			if (input == 1) {
+				if (currentValue.m_operation != Operation::Function) {
+					char text[128];
+					sprintf(text, "grad %.1f", currentValue.m_gradient);
 
+					const float label_width = ImGui::CalcTextSize(text).x;
+					ImGui::Indent(node_width - label_width);
+					ImGui::Text(text, currentValue.m_gradient);
+				}
+			}
+			if (currentValue.m_operation != Operation::None) {
+				ImNodes::EndInputAttribute();
+			}
 		}
+
+		ImNodes::BeginOutputAttribute(attribute_index + MAX_INPUTS);
+		ImNodes::EndOutputAttribute();
 	}
 	break;
 	case Operation::Function:
 	{
-		for (int input = 0; input < function_node_data[i].m_function_input_nodes.size(); input++) {
+		for (int input = 0; input < functions[function_node_data[i].m_function_id].m_num_inputs; input++) {
 			ImNodes::BeginInputAttribute(attribute_index + input);
 			ImGui::Text("%i", input);
 			ImNodes::EndInputAttribute();
 		}
 
-		for (int output = 0; output < function_node_data[i].m_function_output_nodes.size(); output++) {
-			ImNodes::BeginOutputAttribute(attribute_index +
-				function_node_data[i].m_function_input_nodes.size() + output);
+		for (int output = 0; output < functions[function_node_data[i].m_function_id].m_num_outputs; output++) {
+			ImNodes::BeginOutputAttribute(attribute_index + MAX_INPUTS + output);
 			ImNodes::EndOutputAttribute();
 		}
 	}
 	break;
 	case Operation::FunctionInput:
 	{
-		for (int i = 0; i < 8; i++) {
+		for (int i = 0; i < currentValue.m_variableNumConnections; i++) {
 			ImNodes::BeginOutputAttribute(attribute_index + MAX_INPUTS + i);
-			ImGui::Text("");
+			ImGui::Text("%i", i);
 			ImNodes::EndOutputAttribute();
 		}
 	}
 	break;
 	case Operation::FunctionOutput:
 	{
-		for (int i = 0; i < 8; i++) {
+		for (int i = 0; i < currentValue.m_variableNumConnections; i++) {
 			ImNodes::BeginInputAttribute(attribute_index + i);
-			ImGui::Text("");
+			ImGui::Text("%i", i);
 			ImNodes::EndOutputAttribute();
 		}
 	}
@@ -622,6 +664,88 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 	ImNodes::EndNode();
 }
 
+void ComputationGraph::show_connections(Index i, vector<Function>& functions) {
+
+	Value& currentValue = values[i];
+
+	if (currentValue.m_parent == NULL_INDEX) {
+		if (currentValue.m_operation != Operation::Function) {
+			for (int input = 0; input < MAX_INPUTS; input++) {
+				if (currentValue.m_inputs[input].end != NULL_INDEX && currentValue.m_inputs[input].start != NULL_INDEX) {
+					Index start_parent = values[currentValue.m_inputs[input].start].m_parent;
+					if (start_parent == NULL_INDEX) {
+						unsigned input_index = get_attribute_input_index(i, input);
+
+						unsigned output_index = get_attribute_output_index(currentValue.m_inputs[input].start,
+							currentValue.m_inputs[input].start_slot);
+
+						ImNodes::Link(input_index,
+							output_index,
+							input_index);
+					}
+					else
+					{
+						for (auto it : function_node_data[start_parent].m_function_output_nodes) {
+							if (it.start == currentValue.m_inputs[input].start) {
+								unsigned input_index = get_attribute_input_index(i, input);
+
+								unsigned output_index = get_attribute_output_index(start_parent, it.start_slot);
+
+								ImNodes::Link(input_index,
+									output_index,
+									input_index);
+							}
+						}
+
+					}
+				}
+			}	
+		}
+		else
+		{
+			if (currentValue.m_operation == Operation::Function)
+			{
+				for (auto it : function_node_data[i].m_function_input_nodes)
+				{
+					unsigned input_index = get_attribute_input_index(i, it.end_slot);
+
+					unsigned output_index = get_attribute_output_index(it.start, it.start_slot);
+
+					ImNodes::Link(input_index,
+						output_index,
+						input_index);
+				}
+			}
+		}
+	}
+}
+
+void ComputationGraph::create_connection(Connection link) {
+	Connection connection = Connection();
+
+	Index patched_end_node  = link.end;
+	Index patched_start_node = link.start;
+
+	int   patched_end_slot  = link.end_slot;
+	int   patched_start_slot = link.start_slot;
+	//Patch function nodes through
+	if (values[link.start].m_operation == Operation::Function) {
+		patched_start_node = function_node_data[link.start].m_function_output_nodes[link.start_slot].end;
+		patched_start_slot = function_node_data[link.start].m_function_output_nodes[link.start_slot].end_slot;
+	}
+
+	if (values[link.end].m_operation == Operation::Function) {
+		patched_end_node = function_node_data[link.end].m_function_input_nodes[link.end_slot].start;
+		patched_end_slot = function_node_data[link.end].m_function_input_nodes[link.end_slot].start_slot;
+	}
+
+	connection.start = patched_start_node;
+	connection.start_slot = patched_start_slot;
+	connection.end = patched_end_node;
+	connection.end_slot = patched_end_slot;
+
+	apply_operation(EditOperation::add_connection(connection, patched_end_node));
+}
 
 void ComputationGraph::show(const int editor_id, bool* open, std::vector<Function>& functions, const char* name) {
 	forwards();
@@ -680,10 +804,9 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 			ImNodes::BeginNodeEditor(editor_id);
 			ImNodes::StyleColorsDark();
 			for (int i = 0; i < MAX_NODES; i++) {
+				if (used[i]) {
+					Value& currentValue = values[i];
 
-				Value& currentValue = values[i];
-
-				if (currentValue.m_index != NULL_INDEX) {
 					if (currentValue.m_parent == NULL_INDEX) {
 						show_node(i, functions);
 					}
@@ -691,23 +814,8 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 			}
 
 			for (int i = 0; i < MAX_NODES; i++) {
-				Value& currentValue = values[i];
-
-				if (currentValue.m_index != NULL_INDEX) {
-					for (int input = 0; input < MAX_INPUTS; input++) {
-						if (currentValue.m_inputs[input].index != NULL_INDEX) {
-							if (currentValue.m_parent == NULL_INDEX ||
-								values[currentValue.m_inputs[input].index].m_parent == NULL_INDEX ||
-								currentValue.m_parent != values[currentValue.m_inputs[input].index].m_parent) {
-								unsigned input_index = get_attribute_input_index(i, input);
-								unsigned output_index = get_attribute_output_index(currentValue.m_inputs[input].index, currentValue.m_inputs[input].output_slot);
-
-								ImNodes::Link(input_index,
-									output_index,
-									input_index);
-							}
-						}
-					}
+				if (used[i]) {
+					show_connections(i, functions);
 				}
 			}
 
@@ -812,6 +920,15 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 					apply_operation(edit_operation);
 				}
 
+				if (functions.size() > 0) {
+					ImGui::Separator();
+					for (int i = 0; i < functions.size(); i++) {
+						if (ImGui::MenuItem(functions[i].m_name)) {
+							instantiate_function(i, click_pos, functions);
+						}
+					}
+				}
+
 				if (clip::has(clip::text_format())) {
 					ImGui::Separator();
 					if (ImGui::MenuItem("Paste")) {
@@ -833,7 +950,7 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 					copy_selected_nodes(click_pos);
 				}
 				if (ImGui::MenuItem("Collapse to Function")) {
-					collapse_selected_nodes_to_function(click_pos, functions);
+					collapse_selected_nodes_to_new_function(click_pos, functions);
 				}
 
 				ImGui::EndPopup();
@@ -886,21 +1003,23 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 				bool is_first_input = firstNodeAttr < MAX_INPUTS;
 				bool is_second_input = secondNodeAttr < MAX_INPUTS;
 
-				if (is_first_input && !is_second_input) {
+				if (is_first_input && !is_second_input) { 
 					secondNodeAttr -= MAX_INPUTS;
-					Connection connection = Connection();
-					connection.index = secondNode;
-					connection.input_slot = firstNodeAttr;
-					connection.output_slot = secondNodeAttr;
-					apply_operation(EditOperation::add_link(connection, firstNode));
+					Connection connection;
+					connection.end = firstNode;
+					connection.end_slot = firstNodeAttr;
+					connection.start = secondNode;
+					connection.start_slot = secondNodeAttr;
+					create_connection(connection);
 				}
 				else if (!is_first_input && is_second_input) {
 					firstNodeAttr -= MAX_INPUTS;
-					Connection connection = Connection();
-					connection.index = firstNode;
-					connection.input_slot = secondNodeAttr;
-					connection.output_slot = firstNodeAttr;
-					apply_operation(EditOperation::add_link(connection, secondNode));
+					Connection connection;
+					connection.start = firstNode;
+					connection.start_slot = firstNodeAttr;
+					connection.end = secondNode;
+					connection.end_slot = secondNodeAttr;
+					create_connection(connection);
 				}
 			}
 		}

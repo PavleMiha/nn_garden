@@ -32,12 +32,14 @@ typedef unsigned Index;
 
 struct Connection {
 public:
-	Connection(Index _index, unsigned short _input_slot, unsigned short _output_slot) :
-		index(_index), input_slot(_input_slot), output_slot(_output_slot) {};
-	Connection() : index(NULL_INDEX), input_slot(0), output_slot(0) {};
-	Index index{ NULL_INDEX };
-	unsigned short input_slot{ 0 };
-	unsigned short output_slot{ 0 };
+	Connection(Index _start, unsigned short _start_slot, Index _end, unsigned short _end_slot) :
+		start(_start), start_slot(_start_slot), end(_end), end_slot(_end_slot) {};
+	Connection() : start(NULL_INDEX), start_slot(0), end(NULL_INDEX), end_slot(0) {};
+
+	Index start				  { NULL_INDEX };
+	Index end			      { NULL_INDEX };
+	unsigned short start_slot { 0 };
+	unsigned short end_slot   { 0 };
 };
 
 class FunctionNodeData {
@@ -47,18 +49,19 @@ public:
 	vector<Connection>	   m_function_output_nodes;
 };
 
-#define MAX_INPUTS 2
+#define MAX_INPUTS 16
 
 class Value {
 public:
-	Index			   m_index{ NULL_INDEX };
-	float			   m_value{ 0.f };
-	ImVec2			   m_position;
-	bool			   m_positionDirty{ true };
-	float			   m_gradient{ 0.f };
-	Operation		   m_operation{ Operation::None };
-	Connection		   m_inputs[MAX_INPUTS];
-	Index			   m_parent{ NULL_INDEX };
+	Index	   m_index{ NULL_INDEX };
+	float	   m_value{ 0.f };
+	ImVec2	   m_position;
+	bool	   m_positionDirty{ true };
+	float	   m_gradient{ 0.f };
+	Operation  m_operation{ Operation::None };
+	uint8_t	   m_variableNumConnections{ 0 };
+	Connection m_inputs[MAX_INPUTS];//there's redundant information in here...
+	Index	   m_parent{ NULL_INDEX };
 
 	json to_json();
 

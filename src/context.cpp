@@ -18,7 +18,9 @@ void Context::show_function_list(bool* open) {
 	if (*open) {
 		if (ImGui::Begin("Function List", open)) {
 			for (int i = 0; i < functions.size(); i++) {
-				ImGui::InputText("##", functions[i].m_name, 128);
+				char label[256] = {};
+				sprintf(label, "##name%i", i);
+				ImGui::InputText(label, functions[i].m_name, 128);
 				ImGui::SameLine();
 				ImGui::MenuItem("Open", "", &functions[i].m_is_open);
 			}
@@ -29,29 +31,39 @@ void Context::show_function_list(bool* open) {
 
 void Context::create_function_graph(int function_id) {
 	ImNodes::CreateContext(function_id + 1);
-	function_graphs[function_id].clear();
-	function_graphs[function_id].from_json(functions[function_id].m_json, ImVec2());
+
+	ComputationGraph& function_graph = function_graphs[function_id];
+	Function& function = functions[function_id];
+	function_graph.clear();
+	function_graph.from_json(function.m_json, ImVec2());
 	
-	Index input_node_index = function_graphs[function_id].get_new_value();
-	function_graphs[function_id].values[input_node_index].m_operation = Operation::FunctionInput;
-	Index output_node_index = function_graphs[function_id].get_new_value();
-	function_graphs[function_id].values[output_node_index].m_operation = Operation::FunctionOutput;
+	Index input_node_index = function_graph.get_new_value();
+	function_graph.values[input_node_index].m_operation = Operation::FunctionInput;
 
-	int num_nodes = functions[function_id].m_json["nodes"].size();
+	Index output_node_index = function_graph.get_new_value();
+	function_graph.values[output_node_index].m_operation = Operation::FunctionOutput;
 
-	for (auto& node : functions[function_id].m_json["nodes"]) {
+	int num_nodes = function.m_json["nodes"].size();
+
+	function_graph.values[input_node_index].m_variableNumConnections = 0;
+	for (auto& node : function.m_json["nodes"]) {
 		for (int i = 0; i < node["inputs"].size(); i++) {
 			if (node["inputs"][i]["index"] >= num_nodes) {
-				Connection& input = function_graphs[function_id].values[node["index"]].m_inputs[i];
-				input.index = input_node_index;
-				input.input_slot = node["inputs"][i]["input_slot"];
-				input.output_slot = node["inputs"][i]["index"]-num_nodes;
+				Connection& input = function_graph.values[node["index"]].m_inputs[i];
+				input.start = input_node_index;
+				input.start_slot = node["inputs"][i]["index"]-num_nodes;
+				input.end_slot = node["inputs"][i]["input_slot"];
+				input.end = node["index"];
+				function_graph.values[input_node_index].m_variableNumConnections++;
 			}
 		}
 	}
 
-	for (int i = 0; i < functions[function_id].m_json["unmatched_outputs"].size(); i++) {
-		function_graphs[function_id].values[output_node_index].m_inputs[i].index = functions[function_id].m_json["unmatched_outputs"][i]["index"];
+	function_graph.values[output_node_index].m_variableNumConnections = 0;
+
+	for (int i = 0; i < function.m_json["unmatched_outputs"].size(); i++) {
+		function_graph.values[output_node_index].m_inputs[i].start = functions[function_id].m_json["unmatched_outputs"][i]["index"];
+		function_graph.values[output_node_index].m_variableNumConnections++;
 	}
 }
 
