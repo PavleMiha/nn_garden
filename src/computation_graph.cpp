@@ -1,6 +1,9 @@
 #include "computation_graph.h"
-
+#include "bimg/bimg.h"
 #include <set>
+#include <iostream>
+#include <fstream>
+#include "bgfx/bgfx.h"
 
 using nlohmann::json;
 
@@ -45,7 +48,46 @@ void ComputationGraph::collapse_to_new_function(Index* indices, size_t num_indic
 
 	unordered_set<Index> indices_set;
 
+	for (int i = 0; i < num_indices; i++) {
+		indices_set.insert(indices[i]);
+	}
+
 	Index function_node_index = collapse_to_function(indices, num_indices, pos, function_id);
+
+	for (int i = 0; i < num_indices; i++) {
+		for (int j = 0; j < MAX_INPUTS; j++) {
+			if (values[indices[i]].m_inputs[j].start != NULL_INDEX) {
+				if (indices_set.find(values[indices[i]].m_inputs[j].start) == indices_set.end()) {
+					Connection connection;
+					connection.start = values[indices[i]].m_inputs[j].start;
+					connection.start_slot = values[indices[i]].m_inputs[j].start_slot;
+					connection.end = values[indices[i]].m_inputs[j].end;
+					connection.end_slot = values[indices[i]].m_inputs[j].end_slot;
+
+					function_node_data[function_node_index].m_function_input_nodes.push_back(connection);
+				}
+			}
+		}
+	}
+
+	for (int i = 0; i < MAX_NODES; i++) {
+		if (used[i]) {
+			if (indices_set.find(values[i].m_index) == indices_set.end()) {
+				for (int j = 0; j < MAX_INPUTS; j++) {
+					if (indices_set.find(values[i].m_inputs[j].start) != indices_set.end()) {
+						Connection connection;
+						connection.start = values[i].m_inputs[j].start;
+						connection.start_slot = function_node_data[function_node_index].m_function_output_nodes.size();
+						connection.end = i;
+						connection.end_slot = j;
+
+						function_node_data[function_node_index].m_function_output_nodes.push_back(values[i].m_inputs[j]);
+					}
+				}
+			}
+		}
+	}
+
 }
 
 Index ComputationGraph::collapse_to_function(Index* indices, size_t num_indices, ImVec2 pos, int function_id) {
@@ -71,57 +113,19 @@ Index ComputationGraph::collapse_to_function(Index* indices, size_t num_indices,
 		values[indices[i]].m_parent = function_node_index;
 	}
 
-	unordered_set<Index> indices_set;
-
-	for (int i = 0; i < num_indices; i++) {
-		indices_set.insert(indices[i]);
-	}
-
-	for (int i = 0; i < num_indices; i++) {
-		for (int j = 0; j < MAX_INPUTS; j++) {
-			if (values[indices[i]].m_inputs[j].start != NULL_INDEX) {
-				if (indices_set.find(values[indices[i]].m_inputs[j].start) == indices_set.end()) {
-					Connection connection;
-					connection.start =		values[indices[i]].m_inputs[j].start;
-					connection.start_slot = values[indices[i]].m_inputs[j].start_slot;
-					connection.end =		function_node_index;
-					connection.end_slot =	function_node_data[function_node_index].m_function_input_nodes.size();
-
-					function_node_data[function_node_index].m_function_input_nodes.push_back(connection);
-				}
-			}
-		}
-	}
-
-	for (int i = 0; i < MAX_NODES; i++) {
-		if (used[i]) {
-			if (indices_set.find(values[i].m_index) == indices_set.end()) {
-				for (int j = 0; j < MAX_INPUTS; j++) {
-					if (indices_set.find(values[i].m_inputs[j].start) != indices_set.end()) {
-						Connection connection;
-						connection.start =		values[i].m_inputs[j].start;
-						connection.start_slot = function_node_data[function_node_index].m_function_output_nodes.size();
-						connection.end =		i;
-						connection.end_slot =	j;
-
-						function_node_data[function_node_index].m_function_output_nodes.push_back(connection);
-					}
-				}
-			}
-		}
-	}
-
 	function_node_data[function_node_index].m_function_id = function_id;
 
 	return function_node_index;
 }
 
 Index ComputationGraph::instantiate_function(int function_id, const ImVec2& pos, const vector<Function>& functions) {
-	FromJsonAdditionalData additiona_data;
-	from_json(functions[function_id].m_json, pos, &additiona_data);
+	FromJsonAdditionalData additional_data;
+	from_json(functions[function_id].m_json, pos, &additional_data);
 
-	Index i = collapse_to_function(&(additiona_data.indices[0]), additiona_data.indices.size(), pos, functions[function_id].m_id);
+	Index i = collapse_to_function(&(additional_data.indices[0]), additional_data.indices.size(), pos, functions[function_id].m_id);
 
+	function_node_data[i].m_function_input_nodes = additional_data.unmatched_inputs;
+	function_node_data[i].m_function_output_nodes = additional_data.unmatched_outputs;
 	return i;
 }
 
@@ -203,10 +207,6 @@ void ComputationGraph::from_json(const json& json, const ImVec2& origin, FromJso
 		return;
 	}
 
-	if (additional_data != nullptr) {
-		additional_data = new FromJsonAdditionalData;
-	}
-
 	map<Index, Index> json_index_to_index;
 	for (int i = 0; i < json["nodes"].size(); i++) {
 		Index index = get_new_value();
@@ -217,13 +217,24 @@ void ComputationGraph::from_json(const json& json, const ImVec2& origin, FromJso
 
 			bool is_unmatched_input = false;
 			for (auto ui : json["unmatched_inputs"]) {
-				if (ui["json_parent_index"] == json["nodes"][i]["index"]) {
+				if (ui["end"] == json["nodes"][i]["index"]) {
 					is_unmatched_input = true;
 					Connection connection;
 					connection.end = index;
-					connection.end_slot = ui["output_slot"];
+					connection.end_slot = ui["end_slot"];
 
 					additional_data->unmatched_inputs.push_back(connection);
+				}
+			}
+
+			for (auto uo : json["unmatched_outputs"]) {
+				if (uo["start"] == json["nodes"][i]["index"]) {
+					is_unmatched_input = true;
+					Connection connection;
+					connection.start = index;
+					connection.start_slot = uo["start_slot"];
+
+					additional_data->unmatched_outputs.push_back(connection);
 				}
 			}
 		}
@@ -267,6 +278,10 @@ json ComputationGraph::to_json(Index* indices, const ImVec2& origin, int num) {
 	for (int i = 0; i < num; i++) {
 		j["nodes"].push_back(values[indices[i]].to_json());
 		j["nodes"][i]["index"] = index_to_json_index[indices[i]];
+		for (auto& it : j["nodes"][i]["inputs"]) {
+			it["end"] = j["nodes"][i]["index"];
+		}
+
 
 		ImVec2 pos = ImNodes::GetNodeGridSpacePos(indices[i]);
 		j["offsets"].push_back({ pos.x - origin.x, pos.y - origin.y });
@@ -288,10 +303,11 @@ json ComputationGraph::to_json(Index* indices, const ImVec2& origin, int num) {
 
 				if (!found) {
 					json unmatched_input;
-					unmatched_input["index"] = it["start"];
-					unmatched_input["json_parent_index"] = i;
-					unmatched_input["output_slot"] = it["start_slot"];
-					unmatched_input["replacement_index"] = replacement_input_index;
+					unmatched_input["original_start"] = it["start"];
+					unmatched_input["original_start_slot"] = it["start_slot"];
+					unmatched_input["end"] = j["nodes"][i]["index"];
+					unmatched_input["end_slot"] = it["end_slot"];
+					//unmatched_input["replacement_index"] = replacement_input_index;
 					unmatched_inputs.push_back(unmatched_input);
 					it["start"] = replacement_input_index++;
 				}
@@ -312,10 +328,10 @@ json ComputationGraph::to_json(Index* indices, const ImVec2& origin, int num) {
 					if (values[i].m_inputs[j].start != NULL_INDEX) {
 						if (index_to_json_index.find(values[i].m_inputs[j].start) != index_to_json_index.end()) {
 							json unmatched_output;
-							unmatched_output["index"] = index_to_json_index[values[i].m_inputs[j].start];
-							unmatched_output["input_slot"] = j;
-							unmatched_output["output_slot"] = unmatched_output_index++;
-
+							unmatched_output["start"] = index_to_json_index[values[i].m_inputs[j].start];
+							unmatched_output["start_slot"] = values[i].m_inputs[j].start_slot;
+							unmatched_output["original_end"] = values[i].m_inputs[j].end;
+							unmatched_output["original_end_slot"] = values[i].m_inputs[j].end_slot;
 							unmatched_outputs.push_back(unmatched_output);
 						}
 					}
@@ -503,6 +519,84 @@ unsigned ComputationGraph::get_attribute_output_index(Index i, unsigned output) 
 	}
 }
 
+// Function to swap endianness (convert little-endian to big-endian and vice versa)
+template <typename T>
+T swap_endian(T u) {
+	union {
+		T u;
+		unsigned char u8[sizeof(T)];
+	} source, dest;
+	source.u = u;
+	std::reverse_copy(source.u8, source.u8 + sizeof(T), dest.u8);
+	return dest.u;
+}
+
+void DataSource::load() {
+	int x = 0;
+	int y = 0;
+	int comp = 0;
+
+	std::ifstream file("train-images-idx3-ubyte", std::ios::binary);
+
+	if (!file) {
+		std::cerr << "Error opening file." << std::endl;
+		return;
+	}
+
+	// Read the file header or any other necessary information
+	// For MNIST, the first 16 bytes are a header with magic number, number of images, rows, and columns
+	// You might need to adapt this based on the specific format of your file
+	int magic_number, num_images, rows, cols;
+	file.read(reinterpret_cast<char*>(&magic_number), sizeof(magic_number));
+	file.read(reinterpret_cast<char*>(&num_images), sizeof(num_images));
+	file.read(reinterpret_cast<char*>(&rows), sizeof(rows));
+	file.read(reinterpret_cast<char*>(&cols), sizeof(cols));
+
+	// Convert header values to little-endian if necessary
+	magic_number = swap_endian(magic_number);
+	num_images = swap_endian(num_images);
+	rows = swap_endian(rows);
+	cols = swap_endian(cols);
+
+	// Check if the data types and sizes are correct for your specific file format
+
+	// Read the image data
+	const int image_size = rows * cols;
+	data = malloc(image_size * num_images);
+	file.read((char*)data, image_size * num_images);
+
+	// Close the file when done
+	file.close();
+	//const bgfx::Memory* mem = bgfx::copy(image, x*y*comp);
+}
+
+void DataSource::set_current_image_index(int index) {
+	const bgfx::Memory* mem = bgfx::makeRef((char*)data + index*28*28, 28*28);
+
+	image_handle = bgfx::createTexture2D((uint16_t)28, (uint16_t)28, false, 1, bgfx::TextureFormat::A8, 0, mem);
+}
+
+void DataSource::show() {
+	ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(0x69, 0x0f, 0x62, 255));
+	ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(0x8b, 0x26, 0x84, 255));
+	ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(0x94, 0x2e, 0x8c, 255));
+
+	ImNodes::BeginNode(MAX_NODES);
+	ImNodes::BeginNodeTitleBar();
+	ImGui::TextUnformatted("DATA SOURCE");
+	ImNodes::EndNodeTitleBar();
+	if (image_handle.idx != UINT16_MAX)
+		ImGui::Image((ImTextureID)image_handle.idx, ImVec2(60, 60));
+
+	static int counter = 0;
+	float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
+	if (ImGui::ArrowButton("##left", ImGuiDir_Left)) { set_current_image_index(counter++); }
+	ImGui::SameLine(0.0f, spacing);
+	if (ImGui::ArrowButton("##right", ImGuiDir_Right)) { set_current_image_index(counter++); }
+	
+	ImNodes::EndNode();
+}
+
 void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 	Value& currentValue = values[i];
 
@@ -629,6 +723,13 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 
 		for (int output = 0; output < functions[function_node_data[i].m_function_id].m_num_outputs; output++) {
 			ImNodes::BeginOutputAttribute(attribute_index + MAX_INPUTS + output);
+			char text[128];
+			sprintf(text, "%i", output);
+			short function_id = function_node_data[i].m_function_id;
+			float function_node_width = ImMax(ImGui::CalcTextSize(functions[function_id].m_name).x,node_width);
+			const float label_width = ImGui::CalcTextSize(text).x;
+			ImGui::Indent(function_node_width - label_width);
+			ImGui::Text(text);
 			ImNodes::EndOutputAttribute();
 		}
 	}
@@ -664,56 +765,71 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 	ImNodes::EndNode();
 }
 
-void ComputationGraph::show_connections(Index i, vector<Function>& functions) {
+void ComputationGraph::show_connection(Connection connection) {
+	Index start_parent = values[connection.start].m_parent;
 
+	unsigned input_index = get_attribute_input_index(connection.end, connection.end_slot);
+
+	if (start_parent == NULL_INDEX) {
+		unsigned output_index = get_attribute_output_index(connection.start,
+			connection.start_slot);
+
+		ImNodes::Link(input_index,
+			output_index,
+			input_index);
+	}
+	else
+	{
+		for (int output_node = 0; output_node < function_node_data[start_parent].m_function_output_nodes.size(); output_node++) {
+			if (function_node_data[start_parent].m_function_output_nodes[output_node].start == connection.start) {
+				unsigned output_index = get_attribute_output_index(start_parent, output_node);
+
+				ImNodes::Link(input_index,
+					output_index,
+					input_index);
+			}
+		}
+	}
+}
+
+void ComputationGraph::show_connections(Index i, vector<Function>& functions) {
 	Value& currentValue = values[i];
 
 	if (currentValue.m_parent == NULL_INDEX) {
 		if (currentValue.m_operation != Operation::Function) {
 			for (int input = 0; input < MAX_INPUTS; input++) {
-				if (currentValue.m_inputs[input].end != NULL_INDEX && currentValue.m_inputs[input].start != NULL_INDEX) {
-					Index start_parent = values[currentValue.m_inputs[input].start].m_parent;
-					if (start_parent == NULL_INDEX) {
-						unsigned input_index = get_attribute_input_index(i, input);
-
-						unsigned output_index = get_attribute_output_index(currentValue.m_inputs[input].start,
-							currentValue.m_inputs[input].start_slot);
-
-						ImNodes::Link(input_index,
-							output_index,
-							input_index);
-					}
-					else
-					{
-						for (auto it : function_node_data[start_parent].m_function_output_nodes) {
-							if (it.start == currentValue.m_inputs[input].start) {
-								unsigned input_index = get_attribute_input_index(i, input);
-
-								unsigned output_index = get_attribute_output_index(start_parent, it.start_slot);
-
-								ImNodes::Link(input_index,
-									output_index,
-									input_index);
-							}
-						}
-
-					}
-				}
+				if (currentValue.m_inputs[input].end != NULL_INDEX)
+					show_connection(currentValue.m_inputs[input]);
 			}	
 		}
 		else
 		{
 			if (currentValue.m_operation == Operation::Function)
 			{
-				for (auto it : function_node_data[i].m_function_input_nodes)
-				{
-					unsigned input_index = get_attribute_input_index(i, it.end_slot);
+				for (int input = 0; input < function_node_data[currentValue.m_index].m_function_input_nodes.size(); input++) {
+					Connection input_connection = function_node_data[currentValue.m_index].m_function_input_nodes[input];
+					
+					if (input_connection.end != NULL_INDEX) {
+						Connection patched_connection(values[input_connection.end].m_inputs[input_connection.end_slot].start,
+							values[input_connection.end].m_inputs[input_connection.end_slot].start_slot,
+							i,
+							input);
+						if (patched_connection.start != NULL_INDEX) {
+							show_connection(patched_connection);
+						}
+					}
 
-					unsigned output_index = get_attribute_output_index(it.start, it.start_slot);
+					/*if (input_connection.end != NULL_INDEX) {
+						if (values[input_connection.end].m_inputs[input_connection.end_slot].start != NULL_INDEX) {
+							unsigned input_index = get_attribute_input_index(i, input);
 
-					ImNodes::Link(input_index,
-						output_index,
-						input_index);
+							unsigned output_index = get_attribute_output_index(values[input_connection.end].m_inputs[input_connection.end_slot].start, values[input_connection.end].m_inputs[input_connection.end_slot].start_slot);
+
+							ImNodes::Link(input_index,
+								output_index,
+								input_index);
+						}
+					}*/
 				}
 			}
 		}
@@ -730,13 +846,13 @@ void ComputationGraph::create_connection(Connection link) {
 	int   patched_start_slot = link.start_slot;
 	//Patch function nodes through
 	if (values[link.start].m_operation == Operation::Function) {
-		patched_start_node = function_node_data[link.start].m_function_output_nodes[link.start_slot].end;
-		patched_start_slot = function_node_data[link.start].m_function_output_nodes[link.start_slot].end_slot;
+		patched_start_node = function_node_data[link.start].m_function_output_nodes[link.start_slot].start;
+		patched_start_slot = function_node_data[link.start].m_function_output_nodes[link.start_slot].start_slot;
 	}
 
 	if (values[link.end].m_operation == Operation::Function) {
-		patched_end_node = function_node_data[link.end].m_function_input_nodes[link.end_slot].start;
-		patched_end_slot = function_node_data[link.end].m_function_input_nodes[link.end_slot].start_slot;
+		patched_end_node = function_node_data[link.end].m_function_input_nodes[link.end_slot].end;
+		patched_end_slot = function_node_data[link.end].m_function_input_nodes[link.end_slot].end_slot;
 	}
 
 	connection.start = patched_start_node;
@@ -791,9 +907,9 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 
 					for (int i = 0; i < 4; i++)
 					{
-						bool selected = minimap_location_ == locations[i];
+						bool selected = minimap_location == locations[i];
 						if (ImGui::MenuItem(names[i], NULL, &selected))
-							minimap_location_ = locations[i];
+							minimap_location = locations[i];
 					}
 					ImGui::EndMenu();
 				}
@@ -819,7 +935,9 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 				}
 			}
 
-			ImNodes::MiniMap(0.2f, minimap_location_);
+			data_source.show();
+
+			ImNodes::MiniMap(0.2f, minimap_location);
 			ImNodes::EndNodeEditor();
 
 			if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {

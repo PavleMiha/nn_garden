@@ -9,8 +9,13 @@
 #include <vector>
 #include <unordered_set>
 #include <iostream>
+
+#include <bgfx/bgfx.h>
+#include "stb/stb_image.h"
 #include "clip.h"
 #include "json.hpp"
+
+#include "bigg.hpp"
 
 #define MAX_NODES 1024*1024
 #define MAX_CONNECTIONS_PER_NODE 64
@@ -25,6 +30,17 @@ public:
 	bool		m_is_open{ false };
 };
 
+class DataSource {
+public:
+	void*				data;
+	bgfx::TextureHandle image_handle = BGFX_INVALID_HANDLE;
+
+	void set_current_image_index(int index);
+
+	void load();
+	void show();
+};
+
 class ComputationGraph {
 public:
 	bool				   used[MAX_NODES];
@@ -37,12 +53,14 @@ public:
 	vector<EditOperation>  edit_operations;
 	double				   time_right_mouse_pressed = 0.;
 	int					   last_node_hovered = -1;
-	ImNodesMiniMapLocation minimap_location_;
+	ImNodesMiniMapLocation minimap_location;
+	DataSource			   data_source;
 
 	void clear();
 
 	ComputationGraph() {
 		printf("Computation Graph constructor\n");
+
 		clear();
 	}
 
@@ -60,6 +78,10 @@ public:
 
 	void forwards();
 
+	void initialise() {
+		data_source.load();
+		data_source.set_current_image_index(0);
+	}
 	void zero_gradients();
 
 	Value& get_value(Index index);
@@ -97,6 +119,8 @@ public:
 	unsigned get_attribute_output_index(Index i, unsigned output);
 
 	void show_node(Index i, vector<Function>& functions);
+
+	void show_connection(Connection connection);
 
 	void show_connections(Index i, vector<Function>& functions);
 
