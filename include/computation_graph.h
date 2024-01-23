@@ -30,14 +30,42 @@ public:
 	bool		m_is_open{ false };
 };
 
+// Define a structure to hold the data
+struct DataPoint {
+	double x;
+	double y;
+	int label;
+};
+
+static const int cross_offsets[5][2] = {
+	{ 0,  0 },
+	{ -1,  0 },
+	{ 0, -1 },
+	{ 1,  0 },
+	{ 0,  1 } };
+
+static const int x_offsets[5][2] = {
+	{ -1, -1 },
+	{ -1,  1 },
+	{  1, -1 },
+	{  1,  1 },
+	{  0,  0 } };
+
 class DataSource {
 public:
-	void*				data;
+
+	ImVec2 min = ImVec2(-10, -10);
+	ImVec2 max = ImVec2(10, 10);
+	int current_data_point = 0;
+	std::vector<DataPoint> data;
+
+	void* image_data;
+	const bgfx::Memory* image_mem;
 	bgfx::TextureHandle image_handle = BGFX_INVALID_HANDLE;
 
-	void set_current_image_index(int index);
+	void set_current_data_point(int index);
 
-	void load();
+	bool load();
 	void show();
 };
 
@@ -80,7 +108,7 @@ public:
 
 	void initialise() {
 		data_source.load();
-		data_source.set_current_image_index(0);
+		data_source.set_current_data_point(0);
 	}
 	void zero_gradients();
 

@@ -3,6 +3,7 @@
 #include <set>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include "bgfx/bgfx.h"
 
 using nlohmann::json;
@@ -519,61 +520,67 @@ unsigned ComputationGraph::get_attribute_output_index(Index i, unsigned output) 
 	}
 }
 
-// Function to swap endianness (convert little-endian to big-endian and vice versa)
-template <typename T>
-T swap_endian(T u) {
-	union {
-		T u;
-		unsigned char u8[sizeof(T)];
-	} source, dest;
-	source.u = u;
-	std::reverse_copy(source.u8, source.u8 + sizeof(T), dest.u8);
-	return dest.u;
-}
+bool DataSource::load() {
+	std::string line;
+	std::ifstream file("points_data.csv");
 
-void DataSource::load() {
-	int x = 0;
-	int y = 0;
-	int comp = 0;
-
-	std::ifstream file("train-images-idx3-ubyte", std::ios::binary);
-
-	if (!file) {
-		std::cerr << "Error opening file." << std::endl;
-		return;
+	// Check if file is open
+	if (!file.is_open()) {
+		std::cerr << "Error opening file" << std::endl;
+		return false;
 	}
 
-	// Read the file header or any other necessary information
-	// For MNIST, the first 16 bytes are a header with magic number, number of images, rows, and columns
-	// You might need to adapt this based on the specific format of your file
-	int magic_number, num_images, rows, cols;
-	file.read(reinterpret_cast<char*>(&magic_number), sizeof(magic_number));
-	file.read(reinterpret_cast<char*>(&num_images), sizeof(num_images));
-	file.read(reinterpret_cast<char*>(&rows), sizeof(rows));
-	file.read(reinterpret_cast<char*>(&cols), sizeof(cols));
+	// Read lines from the CSV file
+	while (getline(file, line)) {
+		std::stringstream ss(line);
+		DataPoint point;
+		char comma; // Helper char to skip commas
 
-	// Convert header values to little-endian if necessary
-	magic_number = swap_endian(magic_number);
-	num_images = swap_endian(num_images);
-	rows = swap_endian(rows);
-	cols = swap_endian(cols);
+		// Parse the line
+		if (ss >> point.x >> comma >> point.y >> comma >> point.label) {
+			data.push_back(point); // Add the data point to the vector
+		}
+	}
 
-	// Check if the data types and sizes are correct for your specific file format
-
-	// Read the image data
-	const int image_size = rows * cols;
-	data = malloc(image_size * num_images);
-	file.read((char*)data, image_size * num_images);
-
-	// Close the file when done
 	file.close();
-	//const bgfx::Memory* mem = bgfx::copy(image, x*y*comp);
+
+	// Output the data to check
+	for (const auto& point : data) {
+		std::cout << "x: " << point.x << ", y: " << point.y << ", label: " << point.label << std::endl;
+	}
+
+	image_data = malloc(256 * 256 * 4);
+
+	image_mem = bgfx::makeRef((char*)image_data, 256 * 256 * 4);
+	image_handle = bgfx::createTexture2D((uint16_t)256, (uint16_t)256, false, 1, bgfx::TextureFormat::RGBA8, 0, image_mem);
+
+	for (int x = 0; x < 256; x++) {
+		for (int y = 0; y < 256; y++) {
+			((uint32_t*)image_data)[x + y * 256] = 0xffffffff;
+		}
+	}
+
+	for (const auto& point : data) {
+		float coord_x = (point.x - min.x)/(max.x - min.x);
+		float coord_y = (point.y - min.y)/(max.y - min.y);
+
+		uint32_t color = point.label == 1 ? 0xffff0000 : 0xff0000ff;
+
+		const int(*offsets)[2] = point.label == 1 ? x_offsets : cross_offsets;
+		for (int i = 0; i < 5; i++) {
+			int x = (int)(coord_x*256.f) + offsets[i][0];
+			int y = (int)(coord_y*256.f) + offsets[i][1];
+			((uint32_t*)image_data)[x + y * 256] = color;
+		}
+	}
+	return 0;
 }
 
-void DataSource::set_current_image_index(int index) {
-	const bgfx::Memory* mem = bgfx::makeRef((char*)data + index*28*28, 28*28);
+void DataSource::set_current_data_point(int index) {
+	current_data_point = ImClamp(index, 0, (int)data.size());
+	//const bgfx::Memory* mem = bgfx::makeRef((char*)data + index*28*28, 28*28);
 
-	image_handle = bgfx::createTexture2D((uint16_t)28, (uint16_t)28, false, 1, bgfx::TextureFormat::A8, 0, mem);
+	//image_handle = bgfx::createTexture2D((uint16_t)28, (uint16_t)28, false, 1, bgfx::TextureFormat::A8, 0, mem);
 }
 
 void DataSource::show() {
@@ -586,14 +593,29 @@ void DataSource::show() {
 	ImGui::TextUnformatted("DATA SOURCE");
 	ImNodes::EndNodeTitleBar();
 	if (image_handle.idx != UINT16_MAX)
-		ImGui::Image((ImTextureID)image_handle.idx, ImVec2(60, 60));
+		ImGui::Image((ImTextureID)image_handle.idx, ImVec2(400, 400));
 
-	static int counter = 0;
+	ImGui::Text("%.1f,%.1f,%i", data[current_data_point].x, data[current_data_point].y, data[current_data_point].label);
+
 	float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
-	if (ImGui::ArrowButton("##left", ImGuiDir_Left)) { set_current_image_index(counter++); }
+	if (ImGui::ArrowButton("##left", ImGuiDir_Left)) { set_current_data_point(current_data_point - 1); }
 	ImGui::SameLine(0.0f, spacing);
-	if (ImGui::ArrowButton("##right", ImGuiDir_Right)) { set_current_image_index(counter++); }
-	
+	if (ImGui::ArrowButton("##right", ImGuiDir_Right)) { set_current_data_point(current_data_point + 1); }
+
+	const float label_width = ImGui::CalcTextSize("x").x;
+	const float node_width = 70.0f;
+
+	ImGui::PushItemWidth(node_width - label_width);
+
+	ImNodes::BeginOutputAttribute(10000);
+	ImGui::Indent(node_width - label_width);
+	ImGui::Text("x");
+	ImNodes::EndOutputAttribute();
+	ImNodes::BeginOutputAttribute(10001);
+	ImGui::Indent(node_width - label_width);
+	ImGui::Text("y");
+	ImNodes::EndOutputAttribute();
+
 	ImNodes::EndNode();
 }
 
