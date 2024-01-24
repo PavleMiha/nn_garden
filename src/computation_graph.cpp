@@ -593,7 +593,7 @@ void DataSource::show() {
 	ImGui::TextUnformatted("DATA SOURCE");
 	ImNodes::EndNodeTitleBar();
 	if (image_handle.idx != UINT16_MAX)
-		ImGui::Image((ImTextureID)image_handle.idx, ImVec2(400, 400));
+		ImGui::Image((ImTextureID)image_handle.idx, ImVec2(100, 100));
 
 	ImGui::Text("%.1f,%.1f,%i", data[current_data_point].x, data[current_data_point].y, data[current_data_point].label);
 
