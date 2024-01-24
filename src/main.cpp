@@ -51,14 +51,6 @@ class NNGarden : public bigg::Application
 		int height = 0;
 		int comp = 0;
 		
-		void* image = stbi_load("placeholder.png", &width, &height, &comp, 4);
-
-		bgfx::TextureHandle handle = BGFX_INVALID_HANDLE;
-
-		const bgfx::Memory* mem = bgfx::makeRef(image, width * height * comp);
-
-		handle = bgfx::createTexture2D((uint16_t)width, (uint16_t)height, false, 1, bgfx::TextureFormat::BGRA8, 0, bgfx::copy(image, width * height * comp));
-		
 		s_context.main_graph.initialise();
 		load("graph.json");
 	}

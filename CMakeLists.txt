@@ -40,6 +40,9 @@ include_directories(include deps/imgui deps/clip)
 
 add_executable( nn_garden ${SOURCE_FILES} ${HEADER_FILES} src/main.cpp)
 
+configure_file(data/graph.json graph.json COPYONLY)
+configure_file(data/points_data.csv points_data.csv COPYONLY)
+
 target_link_libraries( nn_garden bigg )
 
 #set_target_properties( imgui_demo PROPERTIES FOLDER "examples" )

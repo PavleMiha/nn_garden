@@ -1,0 +1,148 @@
+{
+    "nodes": [
+        {
+            "gradient": 0.0,
+            "index": 0,
+            "inputs": null,
+            "operation": 8,
+            "value": 0.8399999737739563
+        },
+        {
+            "gradient": 0.0,
+            "index": 1,
+            "inputs": null,
+            "operation": 8,
+            "value": 1.440000057220459
+        },
+        {
+            "gradient": 0.0,
+            "index": 2,
+            "inputs": null,
+            "operation": 8,
+            "value": 2.200000047683716
+        },
+        {
+            "gradient": 0.0,
+            "index": 3,
+            "inputs": null,
+            "operation": 8,
+            "value": 2.4000000953674316
+        },
+        {
+            "gradient": 0.0,
+            "index": 4,
+            "inputs": [
+                {
+                    "end": 4,
+                    "end_slot": 0,
+                    "start": 0,
+                    "start_slot": 0
+                },
+                {
+                    "end": 4,
+                    "end_slot": 1,
+                    "start": 1,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 2,
+            "value": 1.2095999717712402
+        },
+        {
+            "gradient": 0.0,
+            "index": 5,
+            "inputs": [
+                {
+                    "end": 5,
+                    "end_slot": 0,
+                    "start": 4,
+                    "start_slot": 0
+                },
+                {
+                    "end": 5,
+                    "end_slot": 1,
+                    "start": 2,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 1,
+            "value": -0.9904000759124756
+        },
+        {
+            "gradient": 0.0,
+            "index": 6,
+            "inputs": [
+                {
+                    "end": 6,
+                    "end_slot": 0,
+                    "start": 5,
+                    "start_slot": 0
+                },
+                {
+                    "end": 6,
+                    "end_slot": 1,
+                    "start": 3,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 0,
+            "value": 1.409600019454956
+        },
+        {
+            "gradient": 0.0,
+            "index": 7,
+            "inputs": [
+                {
+                    "end": 7,
+                    "end_slot": 0,
+                    "start": 6,
+                    "start_slot": 0
+                },
+                {
+                    "end": 7,
+                    "end_slot": 1,
+                    "start": 2,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 2,
+            "value": 3.1011199951171875
+        }
+    ],
+    "offsets": [
+        [
+            238.0,
+            139.0
+        ],
+        [
+            239.0,
+            280.0
+        ],
+        [
+            330.0,
+            405.0
+        ],
+        [
+            331.0,
+            526.0
+        ],
+        [
+            436.0,
+            241.0
+        ],
+        [
+            567.0,
+            336.0
+        ],
+        [
+            675.0,
+            435.0
+        ],
+        [
+            820.0,
+            535.0
+        ]
+    ],
+    "unmatched_inputs": null,
+    "unmatched_outputs": null
+}
