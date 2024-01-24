@@ -6,9 +6,9 @@ A WIP toy to play around with visual representations of computation graphs. Does
 
 ## How to build
 
-'''
+```
 git submodule update --init --recursive
 mkdir build
 cd build
 cmake ..
-'''
+```
