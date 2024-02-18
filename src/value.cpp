@@ -1,6 +1,5 @@
 #include "value.h"
 
-#define MAX_INPUTS 2
 
 json Value::to_json() {
 	json j;
@@ -55,27 +54,40 @@ vector<Index> Value::get_topological_sorted_descendants_inner(unordered_set<Inde
 	return sorted_descendants;
 }
 
-void Value::single_forwards(Value* values) {
+float Value::get_value(int slot, float* data_values) {
+	if (m_operation == Operation::DataSource) {
+		return data_values[slot];
+	}
+	else {
+		return m_value;
+	}
+}
+
+void Value::single_forwards(Value* values, float* data_values) {
 	switch (m_operation) {
 	case Operation::Add:
 		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
-			m_value = values[m_inputs[0].start].m_value + values[m_inputs[1].start].m_value;
+			m_value = values[m_inputs[0].start].get_value(m_inputs[0].start_slot, data_values) + values[m_inputs[1].start].get_value(m_inputs[1].start_slot, data_values);
 		break;
 	case Operation::Multiply:
 		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
-			m_value = values[m_inputs[0].start].m_value * values[m_inputs[1].start].m_value;
+			m_value = values[m_inputs[0].start].get_value(m_inputs[0].start_slot, data_values) * values[m_inputs[1].start].get_value(m_inputs[1].start_slot, data_values);
 		break;
 	case Operation::Subtract:
 		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
-			m_value = values[m_inputs[0].start].m_value - values[m_inputs[1].start].m_value;
+			m_value = values[m_inputs[0].start].get_value(m_inputs[0].start_slot, data_values) - values[m_inputs[1].start].get_value(m_inputs[1].start_slot, data_values);
 		break;
 	case Operation::Divide:
 		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
-			m_value = values[m_inputs[0].start].m_value / values[m_inputs[1].start].m_value;
+			m_value = values[m_inputs[0].start].get_value(m_inputs[0].start_slot, data_values) / values[m_inputs[1].start].get_value(m_inputs[1].start_slot, data_values);
 		break;
 	case Operation::Power:
 		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
-			m_value = pow(values[m_inputs[0].start].m_value, values[m_inputs[1].start].m_value);
+			m_value = pow(m_value = values[m_inputs[0].start].get_value(m_inputs[0].start_slot, data_values), values[m_inputs[1].start].get_value(m_inputs[1].start_slot, data_values));
+		break;
+	case Operation::Tanh:
+		if (m_inputs[0].start != NULL_INDEX)
+			m_value = std::tanh(m_value = values[m_inputs[0].start].get_value(m_inputs[0].start_slot, data_values));
 		break;
 	default:
 		//assert((false && "Unknown operation"));
@@ -83,7 +95,7 @@ void Value::single_forwards(Value* values) {
 	}
 }
 
-void Value::single_backwards(Value* values) {
+void Value::single_backwards(Value* values, float* data_values) {
 	switch (m_operation) {
 	case Operation::Add:
 		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX) {
@@ -118,13 +130,19 @@ void Value::single_backwards(Value* values) {
 				values[m_inputs[1].start].m_value) * log(values[m_inputs[0].start].m_value);
 		}
 		break;
+	case Operation::Tanh:
+		if (m_inputs[0].start != NULL_INDEX) {
+			values[m_inputs[0].start].m_gradient += m_gradient * (1.0f - std::powf(m_value, 2));
+		}
+		break;
+
 	default:
 		//assert((false && "Unknown operation"));
 		break;
 	}
 }
 
-void Value::backwards(Value* values) {
+void Value::backwards(Value* values, float* data_values) {
 	vector<Index> sorted_descendants = get_topological_sorted_descendants(values);
 
 	for (auto& it : sorted_descendants) {
@@ -134,6 +152,6 @@ void Value::backwards(Value* values) {
 	m_gradient = 1.f;
 
 	for (vector<Index>::reverse_iterator it = sorted_descendants.rbegin(); it != sorted_descendants.rend(); ++it) {
-		values[*it].single_backwards(values);
+		values[*it].single_backwards(values, data_values);
 	}
 }

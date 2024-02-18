@@ -276,6 +276,9 @@ struct ImNodesEditorContext
     ImGuiMouseState MouseInScreenSpace;
     ImGuiMouseState MouseInGridSpace;
 
+    ImVec2 ViewportPos;
+    ImVec2 ViewportSize;
+
     ImVector<int> SelectedNodeIndices;
     ImVector<int> SelectedLinkIndices;
 

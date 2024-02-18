@@ -22,10 +22,12 @@ enum class Operation {
 	Multiply,
 	Divide,
 	Power,
+	Tanh,
 	Function,
 	FunctionInput,
 	FunctionOutput,
-	None,
+	Value,
+	DataSource,
 };
 
 typedef unsigned Index;
@@ -58,9 +60,9 @@ public:
 	ImVec2	   m_position;
 	bool	   m_positionDirty{ true };
 	float	   m_gradient{ 0.f };
-	Operation  m_operation{ Operation::None };
+	Operation  m_operation{ Operation::Value };
 	uint8_t	   m_variableNumConnections{ 0 };
-	Connection m_inputs[MAX_INPUTS];//there's redundant information in here...
+	Connection m_inputs[MAX_INPUTS];//todo there's redundant information in here...
 	Index	   m_parent{ NULL_INDEX };
 
 	json to_json();
@@ -81,15 +83,17 @@ public:
 
 	vector<Index> get_topological_sorted_descendants_inner(unordered_set<Index>& visited, Value* values);
 
-	void single_forwards(Value* values);
+	float get_value(int slot, float* data_values);
 
-	void single_backwards(Value* values);
+	void single_forwards(Value* values, float* data_values);
 
-	void backwards(Value* values);
+	void single_backwards(Value* values, float* data_values);
+
+	void backwards(Value* values, float* data_values);
 
 	static Value make_value() {
 		Value value;
-		value.m_operation = Operation::None;
+		value.m_operation = Operation::Value;
 		return value;
 	}
 
@@ -132,6 +136,18 @@ public:
 	static Value make_power() {
 		Value value;
 		value.m_operation = Operation::Power;
+		return value;
+	}
+
+	static Value make_tanh() {
+		Value value;
+		value.m_operation = Operation::Tanh;
+		return value;
+	}
+
+	static Value make_data_source() {
+		Value value;
+		value.m_operation = Operation::DataSource;
 		return value;
 	}
 };

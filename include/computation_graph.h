@@ -32,9 +32,9 @@ public:
 
 // Define a structure to hold the data
 struct DataPoint {
-	double x;
-	double y;
-	int label;
+	float x;
+	float y;
+	float label;
 };
 
 static const int cross_offsets[5][2] = {
@@ -66,7 +66,9 @@ public:
 	void set_current_data_point(int index);
 
 	bool load();
-	void show();
+
+	void update_image();
+	void show_body(int attribute_index);
 };
 
 class ComputationGraph {
@@ -80,6 +82,7 @@ public:
 	int					   current_operation = 0;
 	vector<EditOperation>  edit_operations;
 	double				   time_right_mouse_pressed = 0.;
+	ImVec2				   right_mouse_pressed_pos = ImVec2();
 	int					   last_node_hovered = -1;
 	ImNodesMiniMapLocation minimap_location;
 	DataSource			   data_source;
@@ -104,7 +107,7 @@ public:
 
 	void delete_value_and_return_removed_connections(Index index, vector<Connection>& removed_connections);
 
-	void forwards();
+	void forwards(float* data_values);
 
 	void initialise() {
 		data_source.load();

@@ -155,7 +155,7 @@ void ComputationGraph::delete_value_and_return_removed_connections(Index index, 
 	return;
 }
 
-void ComputationGraph::forwards() {
+void ComputationGraph::forwards(float* data_values) {
 	//first we find all the nodes with no parents
 	unordered_set <Index> checked;
 	unordered_set <Index> has_parent;
@@ -184,12 +184,11 @@ void ComputationGraph::forwards() {
 
 		for (const auto& descendant : sorted_descendants) {
 			if (calculated.find(descendant) == calculated.end()) {
-				values[descendant].single_forwards(values);
+				values[descendant].single_forwards(values, data_values);
 				calculated.insert(descendant);
 			}
 		}
 	}
-
 }
 
 void ComputationGraph::zero_gradients() {
@@ -545,35 +544,48 @@ bool DataSource::load() {
 	file.close();
 
 	// Output the data to check
-	for (const auto& point : data) {
-		std::cout << "x: " << point.x << ", y: " << point.y << ", label: " << point.label << std::endl;
-	}
-
 	image_data = malloc(256 * 256 * 4);
 
+	update_image();
+	return 0;
+}
+
+void DataSource::update_image() {
+	if (image_handle.idx != UINT16_MAX) {
+		bgfx::destroy(image_handle);
+	}
+
+	//todo delete old one??
 	image_mem = bgfx::makeRef((char*)image_data, 256 * 256 * 4);
 	image_handle = bgfx::createTexture2D((uint16_t)256, (uint16_t)256, false, 1, bgfx::TextureFormat::RGBA8, 0, image_mem);
 
 	for (int x = 0; x < 256; x++) {
 		for (int y = 0; y < 256; y++) {
 			((uint32_t*)image_data)[x + y * 256] = 0xffffffff;
+
+			if (x == 128 || y == 128) {
+				((uint32_t*)image_data)[x + y * 256] = 0xffdddddd;
+			}
 		}
 	}
 
-	for (const auto& point : data) {
-		float coord_x = (point.x - min.x)/(max.x - min.x);
-		float coord_y = (point.y - min.y)/(max.y - min.y);
+	for (int i = 0; i < data.size(); i++) {
+		DataPoint& point = data[i];
+		float coord_x = (point.x - min.x) / (max.x - min.x);
+		float coord_y = 1.f - (point.y - min.y) / (max.y - min.y);
 
-		uint32_t color = point.label == 1 ? 0xffff0000 : 0xff0000ff;
+		uint32_t color = (point.label == 1) ? 0xffff0000 : 0xff0000ff;
+
+		color = (i == current_data_point) ? 0xff00ff00 : color;
 
 		const int(*offsets)[2] = point.label == 1 ? x_offsets : cross_offsets;
 		for (int i = 0; i < 5; i++) {
-			int x = (int)(coord_x*256.f) + offsets[i][0];
-			int y = (int)(coord_y*256.f) + offsets[i][1];
+			int x = (int)(coord_x * 256.f) + offsets[i][0];
+			int y = (int)(coord_y * 256.f) + offsets[i][1];
 			((uint32_t*)image_data)[x + y * 256] = color;
 		}
 	}
-	return 0;
+
 }
 
 void DataSource::set_current_data_point(int index) {
@@ -583,40 +595,38 @@ void DataSource::set_current_data_point(int index) {
 	//image_handle = bgfx::createTexture2D((uint16_t)28, (uint16_t)28, false, 1, bgfx::TextureFormat::A8, 0, mem);
 }
 
-void DataSource::show() {
-	ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(0x69, 0x0f, 0x62, 255));
-	ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(0x8b, 0x26, 0x84, 255));
-	ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(0x94, 0x2e, 0x8c, 255));
-
-	ImNodes::BeginNode(MAX_NODES);
-	ImNodes::BeginNodeTitleBar();
-	ImGui::TextUnformatted("DATA SOURCE");
-	ImNodes::EndNodeTitleBar();
+void DataSource::show_body(int attribute_index) {
 	if (image_handle.idx != UINT16_MAX)
 		ImGui::Image((ImTextureID)image_handle.idx, ImVec2(100, 100));
 
-	ImGui::Text("%.1f,%.1f,%i", data[current_data_point].x, data[current_data_point].y, data[current_data_point].label);
-
 	float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
-	if (ImGui::ArrowButton("##left", ImGuiDir_Left)) { set_current_data_point(current_data_point - 1); }
+	if (ImGui::ArrowButton("##left", ImGuiDir_Left)) { set_current_data_point(current_data_point - 1); update_image(); }
 	ImGui::SameLine(0.0f, spacing);
-	if (ImGui::ArrowButton("##right", ImGuiDir_Right)) { set_current_data_point(current_data_point + 1); }
+	if (ImGui::ArrowButton("##right", ImGuiDir_Right)) { set_current_data_point(current_data_point + 1); update_image(); }
 
-	const float label_width = ImGui::CalcTextSize("x").x;
-	const float node_width = 70.0f;
+	const float node_width = 100.f;
 
-	ImGui::PushItemWidth(node_width - label_width);
+//	ImGui::PushItemWidth(node_width - label_width);
 
-	ImNodes::BeginOutputAttribute(10000);
+	ImNodes::BeginOutputAttribute(attribute_index);
+	char text[128] = {};
+	sprintf(text, "%.1f x", data[current_data_point].x);
+	float label_width = ImGui::CalcTextSize(text).x;
 	ImGui::Indent(node_width - label_width);
-	ImGui::Text("x");
+	ImGui::Text(text);
 	ImNodes::EndOutputAttribute();
-	ImNodes::BeginOutputAttribute(10001);
+	ImNodes::BeginOutputAttribute(attribute_index + 1);
+	sprintf(text, "%.1f y", data[current_data_point].y);
+	label_width = ImGui::CalcTextSize(text).x;
 	ImGui::Indent(node_width - label_width);
-	ImGui::Text("y");
+	ImGui::Text(text);
 	ImNodes::EndOutputAttribute();
-
-	ImNodes::EndNode();
+	ImNodes::BeginOutputAttribute(attribute_index + 2);
+	sprintf(text, "%.0f label", data[current_data_point].label);
+	label_width = ImGui::CalcTextSize(text).x;
+	ImGui::Indent(node_width - label_width);
+	ImGui::Text(text);
+	ImNodes::EndOutputAttribute();
 }
 
 void ComputationGraph::show_node(Index i, vector<Function>& functions) {
@@ -630,7 +640,7 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 		ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(204, 148, 81, 255));
 	}
 
-	if (currentValue.m_operation == Operation::None)
+	if (currentValue.m_operation == Operation::Value)
 	{
 		ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(0x69, 0x0f, 0x62, 255));
 		ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(0x8b, 0x26, 0x84, 255));
@@ -674,8 +684,14 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 	case Operation::Power:
 		ImGui::TextUnformatted("pow");
 		break;
-	case Operation::None:
+	case Operation::Tanh:
+		ImGui::TextUnformatted("tanh");
+		break;
+	case Operation::Value:
 		ImGui::TextUnformatted("value");
+		break;
+	case Operation::DataSource:
+		ImGui::TextUnformatted("data");
 		break;
 	default:
 		IM_ASSERT(0 && "Missing title for operation type");
@@ -690,15 +706,15 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 	case Operation::Divide:
 	case Operation::Multiply:
 	case Operation::Power:
-	case Operation::None:
+	case Operation::Value:
 	{
 		for (int input = 0; input < 2; input++) {
-			if (currentValue.m_operation != Operation::None) {
+			if (currentValue.m_operation != Operation::Value) {
 				ImNodes::BeginInputAttribute(attribute_index + input);
 			}
 
 			if (input == 0) {
-				if (currentValue.m_operation == Operation::None) {
+				if (currentValue.m_operation == Operation::Value) {
 					const float label_width = ImGui::CalcTextSize("value").x;
 
 					ImGui::PushItemWidth(node_width - label_width);
@@ -726,12 +742,37 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 					ImGui::Text(text, currentValue.m_gradient);
 				}
 			}
-			if (currentValue.m_operation != Operation::None) {
+			if (currentValue.m_operation != Operation::Value) {
 				ImNodes::EndInputAttribute();
 			}
 		}
 
 		ImNodes::BeginOutputAttribute(attribute_index + MAX_INPUTS);
+		ImNodes::EndOutputAttribute();
+	}
+	break;
+	case Operation::Tanh:
+	{
+		ImNodes::BeginInputAttribute(attribute_index);
+		{
+			char text[128];
+			sprintf(text, "%.1f", currentValue.m_value);
+
+			const float label_width = ImGui::CalcTextSize(text).x;
+			ImGui::Indent(node_width - label_width);
+			ImGui::Text(text);
+			ImNodes::EndInputAttribute();
+		}
+
+		ImNodes::BeginOutputAttribute(attribute_index + MAX_INPUTS);
+		{
+			char text[128];
+			sprintf(text, "grad %.1f", currentValue.m_gradient);
+			const float label_width = ImGui::CalcTextSize(text).x;
+			ImGui::Indent(node_width - label_width);
+			ImGui::Text(text, currentValue.m_gradient);
+		}
+
 		ImNodes::EndOutputAttribute();
 	}
 	break;
@@ -774,11 +815,16 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 		}
 	}
 	break;
+	case Operation::DataSource:
+	{
+		data_source.show_body(attribute_index + MAX_INPUTS);
+	}	
+	break;
 	default:
 		IM_ASSERT(0 && "Missing body for operation type");
 		break;
 	}
-	if (i == current_backwards_node || currentValue.m_operation == Operation::None) {
+	if (i == current_backwards_node || currentValue.m_operation == Operation::Value) {
 		ImNodes::PopColorStyle();
 		ImNodes::PopColorStyle();
 		ImNodes::PopColorStyle();
@@ -886,12 +932,12 @@ void ComputationGraph::create_connection(Connection link) {
 }
 
 void ComputationGraph::show(const int editor_id, bool* open, std::vector<Function>& functions, const char* name) {
-	forwards();
+	forwards(&data_source.data[data_source.current_data_point].x);
 
 	zero_gradients();
 
 	if (current_backwards_node != NULL_INDEX)
-		get_value(current_backwards_node).backwards(values);
+		get_value(current_backwards_node).backwards(values, &data_source.data[data_source.current_data_point].x);
 
 	auto flags = ImGuiWindowFlags_MenuBar;
 
@@ -957,8 +1003,6 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 				}
 			}
 
-			data_source.show();
-
 			ImNodes::MiniMap(0.2f, minimap_location);
 			ImNodes::EndNodeEditor();
 
@@ -1003,18 +1047,21 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 			if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
 				ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
 				time_right_mouse_pressed = ImGui::GetTime();
+				right_mouse_pressed_pos = ImGui::GetMousePos();
 			}
 
 			if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
 				ImGui::IsMouseReleased(ImGuiMouseButton_Right) &&
 				ImGui::GetTime() - time_right_mouse_pressed < 0.3) {
-				if (!nodes_selected && !node_hovered)
-					ImGui::OpenPopup("none selected");
-				else if ((node_hovered && !nodes_selected) || (node_hovered && !is_hovered_node_selected))
-					ImGui::OpenPopup("node hovered");
-				else if (nodes_selected)
-					ImGui::OpenPopup("multiple nodes selected");
-
+				ImVec2 dist = (ImGui::GetMousePos() - right_mouse_pressed_pos);
+				if (dist.x * dist.x + dist.y * dist.y < 10) {
+					if (!nodes_selected && !node_hovered)
+						ImGui::OpenPopup("none selected");
+					else if ((node_hovered && !nodes_selected) || (node_hovered && !is_hovered_node_selected))
+						ImGui::OpenPopup("node hovered");
+					else if (nodes_selected)
+						ImGui::OpenPopup("multiple nodes selected");
+				}
 			}
 
 			if (ImGui::BeginPopup("none selected"))
@@ -1055,6 +1102,18 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 				}
 				if (ImGui::MenuItem("Create Power Node")) {
 					Value value = Value::make_power();
+					value.m_position = click_pos;
+					EditOperation edit_operation = EditOperation::add_node(value);
+					apply_operation(edit_operation);
+				}
+				if (ImGui::MenuItem("Create Tanh")) {
+					Value value = Value::make_tanh();
+					value.m_position = click_pos;
+					EditOperation edit_operation = EditOperation::add_node(value);
+					apply_operation(edit_operation);
+				}
+				if (ImGui::MenuItem("Create Data Source Node")) {
+					Value value = Value::make_data_source();
 					value.m_position = click_pos;
 					EditOperation edit_operation = EditOperation::add_node(value);
 					apply_operation(edit_operation);

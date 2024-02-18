@@ -2334,6 +2334,11 @@ void BeginNodeEditor(const int editor_id)
     TransformImGuiMouseStateToGridSpace(editor, &editor.MouseInGridSpace);
     SetImGuiMouseState(editor.MouseInGridSpace);
 
+    editor.ViewportPos = ImGui::GetMainViewport()->Pos;
+    editor.ViewportSize = ImGui::GetMainViewport()->Size;
+
+    ImGui::GetMainViewport()->Pos = editor.VisibleGridRect.Min;
+    ImGui::GetMainViewport()->Size = editor.VisibleGridRect.GetSize();
     // Reset state from previous pass
 
     editor.AutoPanningDelta = ImVec2(0, 0);
@@ -2576,6 +2581,9 @@ void EndNodeEditor()
 
     // Restore ImGui's mouse state transformed to grid space in BeginNodeEditor()
     SetImGuiMouseState(editor.MouseInScreenSpace);
+
+    ImGui::GetMainViewport()->Pos = editor.ViewportPos;
+    ImGui::GetMainViewport()->Size = editor.ViewportSize;
 }
 
 void MiniMap(
