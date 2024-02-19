@@ -416,6 +416,7 @@ void ComputationGraph::delete_selected_nodes() {
 			for (int j = 0; j < MAX_NODES; j++) {
 				for (int k = 0; k < MAX_INPUTS; k++) {
 					if (values[j].m_inputs[k].start == selected_nodes[i]) {
+						//remove all links
 						EditOperation op = EditOperation::remove_link(values[j].m_inputs[k], j, false);
 						apply_operation(op);
 					}
@@ -433,6 +434,11 @@ void ComputationGraph::delete_selected_nodes() {
 		}
 
 		for (int i = 0; i < num_nodes_selected; i++) {
+			//if we're deleting a node that's the backwards node, we need to clear it
+			if (current_backwards_node == selected_nodes[i]) {
+				current_backwards_node = NULL_INDEX;
+			}
+
 			EditOperation op = EditOperation::remove_node(selected_nodes[i], i == num_nodes_selected - 1);
 			apply_operation(op);
 		}

@@ -83,6 +83,8 @@ public:
 
 	vector<Index> get_topological_sorted_descendants_inner(unordered_set<Index>& visited, Value* values);
 
+	float get_input_value(Value* values, int node, float* data_values);
+
 	float get_value(int slot, float* data_values);
 
 	void single_forwards(Value* values, float* data_values);

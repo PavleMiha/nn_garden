@@ -54,6 +54,13 @@ vector<Index> Value::get_topological_sorted_descendants_inner(unordered_set<Inde
 	return sorted_descendants;
 }
 
+float Value::get_input_value(Value* values, int input, float* data_values) {
+	if (m_inputs[input].start == NULL_INDEX)
+		return 0;
+	else
+		return values[m_inputs[input].start].get_value(m_inputs[input].start_slot, data_values);
+}
+
 float Value::get_value(int slot, float* data_values) {
 	if (m_operation == Operation::DataSource) {
 		return data_values[slot];
@@ -64,30 +71,25 @@ float Value::get_value(int slot, float* data_values) {
 }
 
 void Value::single_forwards(Value* values, float* data_values) {
+
 	switch (m_operation) {
 	case Operation::Add:
-		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
-			m_value = values[m_inputs[0].start].get_value(m_inputs[0].start_slot, data_values) + values[m_inputs[1].start].get_value(m_inputs[1].start_slot, data_values);
+		m_value = get_input_value(values, 0, data_values) + get_input_value(values, 1, data_values);
 		break;
 	case Operation::Multiply:
-		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
-			m_value = values[m_inputs[0].start].get_value(m_inputs[0].start_slot, data_values) * values[m_inputs[1].start].get_value(m_inputs[1].start_slot, data_values);
+		m_value = get_input_value(values, 0, data_values) * get_input_value(values, 1, data_values);
 		break;
 	case Operation::Subtract:
-		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
-			m_value = values[m_inputs[0].start].get_value(m_inputs[0].start_slot, data_values) - values[m_inputs[1].start].get_value(m_inputs[1].start_slot, data_values);
+		m_value = get_input_value(values, 0, data_values) - get_input_value(values, 1, data_values);
 		break;
 	case Operation::Divide:
-		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
-			m_value = values[m_inputs[0].start].get_value(m_inputs[0].start_slot, data_values) / values[m_inputs[1].start].get_value(m_inputs[1].start_slot, data_values);
+		m_value = get_input_value(values, 0, data_values) / get_input_value(values, 1, data_values);
 		break;
 	case Operation::Power:
-		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX)
-			m_value = pow(m_value = values[m_inputs[0].start].get_value(m_inputs[0].start_slot, data_values), values[m_inputs[1].start].get_value(m_inputs[1].start_slot, data_values));
+		m_value = std::powf(get_input_value(values, 0, data_values), get_input_value(values, 1, data_values));
 		break;
 	case Operation::Tanh:
-		if (m_inputs[0].start != NULL_INDEX)
-			m_value = std::tanh(m_value = values[m_inputs[0].start].get_value(m_inputs[0].start_slot, data_values));
+		m_value = std::tanh(get_input_value(values, 0, data_values));
 		break;
 	default:
 		//assert((false && "Unknown operation"));
@@ -98,10 +100,10 @@ void Value::single_forwards(Value* values, float* data_values) {
 void Value::single_backwards(Value* values, float* data_values) {
 	switch (m_operation) {
 	case Operation::Add:
-		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX) {
+		if (m_inputs[0].start != NULL_INDEX)
 			values[m_inputs[0].start].m_gradient += m_gradient;
+		if (m_inputs[1].start != NULL_INDEX)
 			values[m_inputs[1].start].m_gradient += m_gradient;
-		}
 		break;
 	case Operation::Multiply:
 		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX) {
@@ -110,8 +112,10 @@ void Value::single_backwards(Value* values, float* data_values) {
 		}
 		break;
 	case Operation::Subtract:
-		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX) {
+		if (m_inputs[0].start != NULL_INDEX) {
 			values[m_inputs[0].start].m_gradient += m_gradient;
+		}
+		if (m_inputs[1].start != NULL_INDEX) {
 			values[m_inputs[1].start].m_gradient -= m_gradient;
 		}
 		break;
