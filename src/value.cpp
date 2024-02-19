@@ -106,9 +106,11 @@ void Value::single_backwards(Value* values, float* data_values) {
 			values[m_inputs[1].start].m_gradient += m_gradient;
 		break;
 	case Operation::Multiply:
-		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX) {
-			values[m_inputs[0].start].m_gradient += m_gradient * values[m_inputs[1].start].m_value;
-			values[m_inputs[1].start].m_gradient += m_gradient * values[m_inputs[0].start].m_value;
+		if (m_inputs[0].start != NULL_INDEX) {
+			values[m_inputs[0].start].m_gradient += m_gradient * get_input_value(values, 1, data_values);
+		}
+		if (m_inputs[1].start != NULL_INDEX) {
+			values[m_inputs[1].start].m_gradient += m_gradient * get_input_value(values, 0, data_values);
 		}
 		break;
 	case Operation::Subtract:
@@ -120,18 +122,22 @@ void Value::single_backwards(Value* values, float* data_values) {
 		}
 		break;
 	case Operation::Divide:
-		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX) {
+		if (m_inputs[0].start != NULL_INDEX && get_input_value(values, 1, data_values) != 0) {
 			values[m_inputs[0].start].m_gradient += m_gradient / values[m_inputs[1].start].m_value;
-			values[m_inputs[1].start].m_gradient -= m_gradient * values[m_inputs[0].start].m_value /
+		}
+		if (m_inputs[1].start != NULL_INDEX) {
+			values[m_inputs[1].start].m_gradient -= m_gradient * get_input_value(values, 0, data_values) /
 				(values[m_inputs[1].start].m_value * values[m_inputs[1].start].m_value);
 		}
 		break;
 	case Operation::Power:
-		if (m_inputs[0].start != NULL_INDEX && m_inputs[1].start != NULL_INDEX) {
+		if (m_inputs[0].start != NULL_INDEX) {
 			values[m_inputs[0].start].m_gradient += m_gradient * values[m_inputs[1].start].m_value *
 				pow(values[m_inputs[0].start].m_value, values[m_inputs[1].start].m_value - 1);
-			values[m_inputs[1].start].m_gradient += m_gradient * pow(values[m_inputs[0].start].m_value,
-				values[m_inputs[1].start].m_value) * log(values[m_inputs[0].start].m_value);
+		}
+		if (m_inputs[1].start != NULL_INDEX) {
+			values[m_inputs[1].start].m_gradient += m_gradient * pow(get_input_value(values, 0, data_values), 
+				values[m_inputs[1].start].m_value) * log(get_input_value(values, 0, data_values));
 		}
 		break;
 	case Operation::Tanh:

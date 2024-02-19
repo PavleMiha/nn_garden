@@ -4,143 +4,581 @@
             "gradient": 0.0,
             "index": 0,
             "inputs": null,
-            "operation": 8,
-            "value": 0.8399999737739563
+            "operation": 10,
+            "value": 0.0
         },
         {
             "gradient": 0.0,
             "index": 1,
             "inputs": null,
-            "operation": 8,
-            "value": 1.440000057220459
+            "operation": 9,
+            "value": 0.0
         },
         {
             "gradient": 0.0,
             "index": 2,
             "inputs": null,
-            "operation": 8,
-            "value": 2.200000047683716
+            "operation": 9,
+            "value": 0.0
         },
         {
             "gradient": 0.0,
             "index": 3,
             "inputs": null,
-            "operation": 8,
-            "value": 2.4000000953674316
+            "operation": 9,
+            "value": 0.0
         },
         {
             "gradient": 0.0,
             "index": 4,
+            "inputs": null,
+            "operation": 9,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 5,
+            "inputs": null,
+            "operation": 9,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 6,
+            "inputs": null,
+            "operation": 9,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 7,
+            "inputs": null,
+            "operation": 9,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 8,
+            "inputs": null,
+            "operation": 9,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 9,
+            "inputs": null,
+            "operation": 9,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 10,
+            "inputs": null,
+            "operation": 9,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 11,
+            "inputs": null,
+            "operation": 9,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 12,
+            "inputs": null,
+            "operation": 9,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 13,
+            "inputs": null,
+            "operation": 9,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 14,
+            "inputs": null,
+            "operation": 9,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 15,
             "inputs": [
                 {
-                    "end": 4,
+                    "end": 15,
                     "end_slot": 0,
-                    "start": 0,
+                    "start": 7,
                     "start_slot": 0
                 },
                 {
-                    "end": 4,
+                    "end": 15,
+                    "end_slot": 1,
+                    "start": 0,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 2,
+            "value": -0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 16,
+            "inputs": [
+                {
+                    "end": 16,
+                    "end_slot": 0,
+                    "start": 8,
+                    "start_slot": 0
+                },
+                {
+                    "end": 16,
+                    "end_slot": 1,
+                    "start": 0,
+                    "start_slot": 1
+                }
+            ],
+            "operation": 2,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 17,
+            "inputs": [
+                {
+                    "end": 17,
+                    "end_slot": 0,
+                    "start": 9,
+                    "start_slot": 0
+                },
+                {
+                    "end": 17,
                     "end_slot": 1,
                     "start": 1,
                     "start_slot": 0
                 }
             ],
             "operation": 2,
-            "value": 1.2095999717712402
+            "value": 0.0
         },
         {
             "gradient": 0.0,
-            "index": 5,
+            "index": 18,
             "inputs": [
                 {
-                    "end": 5,
+                    "end": 18,
                     "end_slot": 0,
-                    "start": 4,
+                    "start": 10,
                     "start_slot": 0
                 },
                 {
-                    "end": 5,
-                    "end_slot": 1,
-                    "start": 2,
-                    "start_slot": 0
-                }
-            ],
-            "operation": 1,
-            "value": -0.9904000759124756
-        },
-        {
-            "gradient": 0.0,
-            "index": 6,
-            "inputs": [
-                {
-                    "end": 6,
-                    "end_slot": 0,
-                    "start": 5,
-                    "start_slot": 0
-                },
-                {
-                    "end": 6,
-                    "end_slot": 1,
-                    "start": 3,
-                    "start_slot": 0
-                }
-            ],
-            "operation": 0,
-            "value": 1.409600019454956
-        },
-        {
-            "gradient": 0.0,
-            "index": 7,
-            "inputs": [
-                {
-                    "end": 7,
-                    "end_slot": 0,
-                    "start": 6,
-                    "start_slot": 0
-                },
-                {
-                    "end": 7,
+                    "end": 18,
                     "end_slot": 1,
                     "start": 2,
                     "start_slot": 0
                 }
             ],
             "operation": 2,
-            "value": 3.1011199951171875
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 19,
+            "inputs": [
+                {
+                    "end": 19,
+                    "end_slot": 0,
+                    "start": 11,
+                    "start_slot": 0
+                },
+                {
+                    "end": 19,
+                    "end_slot": 1,
+                    "start": 3,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 2,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 20,
+            "inputs": [
+                {
+                    "end": 20,
+                    "end_slot": 0,
+                    "start": 12,
+                    "start_slot": 0
+                },
+                {
+                    "end": 20,
+                    "end_slot": 1,
+                    "start": 4,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 2,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 21,
+            "inputs": [
+                {
+                    "end": 21,
+                    "end_slot": 0,
+                    "start": 13,
+                    "start_slot": 0
+                },
+                {
+                    "end": 21,
+                    "end_slot": 1,
+                    "start": 5,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 2,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 22,
+            "inputs": [
+                {
+                    "end": 22,
+                    "end_slot": 0,
+                    "start": 14,
+                    "start_slot": 0
+                },
+                {
+                    "end": 22,
+                    "end_slot": 1,
+                    "start": 6,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 2,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 23,
+            "inputs": [
+                {
+                    "end": 23,
+                    "end_slot": 0,
+                    "start": 15,
+                    "start_slot": 0
+                },
+                {
+                    "end": 23,
+                    "end_slot": 1,
+                    "start": 16,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 0,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 24,
+            "inputs": [
+                {
+                    "end": 24,
+                    "end_slot": 0,
+                    "start": 17,
+                    "start_slot": 0
+                },
+                {
+                    "end": 24,
+                    "end_slot": 1,
+                    "start": 18,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 0,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 25,
+            "inputs": [
+                {
+                    "end": 25,
+                    "end_slot": 0,
+                    "start": 19,
+                    "start_slot": 0
+                },
+                {
+                    "end": 25,
+                    "end_slot": 1,
+                    "start": 20,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 0,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 26,
+            "inputs": [
+                {
+                    "end": 26,
+                    "end_slot": 0,
+                    "start": 21,
+                    "start_slot": 0
+                },
+                {
+                    "end": 26,
+                    "end_slot": 1,
+                    "start": 22,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 0,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 27,
+            "inputs": [
+                {
+                    "end": 27,
+                    "end_slot": 0,
+                    "start": 23,
+                    "start_slot": 0
+                },
+                {
+                    "end": 27,
+                    "end_slot": 1,
+                    "start": 24,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 0,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 28,
+            "inputs": [
+                {
+                    "end": 28,
+                    "end_slot": 0,
+                    "start": 25,
+                    "start_slot": 0
+                },
+                {
+                    "end": 28,
+                    "end_slot": 1,
+                    "start": 26,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 0,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 29,
+            "inputs": [
+                {
+                    "end": 29,
+                    "end_slot": 0,
+                    "start": 27,
+                    "start_slot": 0
+                },
+                {
+                    "end": 29,
+                    "end_slot": 1,
+                    "start": 28,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 0,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 30,
+            "inputs": [
+                {
+                    "end": 30,
+                    "end_slot": 0,
+                    "start": 31,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 5,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 31,
+            "inputs": [
+                {
+                    "end": 31,
+                    "end_slot": 0,
+                    "start": 29,
+                    "start_slot": 0
+                },
+                {
+                    "end": 31,
+                    "end_slot": 1,
+                    "start": 32,
+                    "start_slot": 0
+                }
+            ],
+            "operation": 0,
+            "value": 0.0
+        },
+        {
+            "gradient": 0.0,
+            "index": 32,
+            "inputs": null,
+            "operation": 9,
+            "value": 0.0
         }
     ],
     "offsets": [
         [
-            238.0,
-            139.0
+            252.0,
+            131.0
         ],
         [
-            239.0,
-            280.0
+            281.0,
+            442.5
         ],
         [
-            330.0,
-            405.0
+            286.0,
+            561.5
         ],
         [
-            331.0,
-            526.0
+            289.0,
+            672.5
         ],
         [
-            436.0,
-            241.0
+            288.0,
+            767.861083984375
         ],
         [
-            567.0,
-            336.0
+            289.25,
+            875.361083984375
         ],
         [
-            675.0,
-            435.0
+            289.25,
+            992.861083984375
         ],
         [
-            820.0,
-            535.0
+            544.5,
+            202.11102294921875
+        ],
+        [
+            544.5,
+            313.3610534667969
+        ],
+        [
+            540.75,
+            404.611083984375
+        ],
+        [
+            545.75,
+            495.861083984375
+        ],
+        [
+            544.5,
+            600.861083984375
+        ],
+        [
+            548.25,
+            705.861083984375
+        ],
+        [
+            545.75,
+            799.611083984375
+        ],
+        [
+            542.0,
+            922.111083984375
+        ],
+        [
+            720.2500610351563,
+            228.11102294921875
+        ],
+        [
+            724.0000610351563,
+            335.6110534667969
+        ],
+        [
+            729.0000610351563,
+            440.611083984375
+        ],
+        [
+            730.2500610351563,
+            546.861083984375
+        ],
+        [
+            725.2500610351563,
+            658.111083984375
+        ],
+        [
+            726.5,
+            758.111083984375
+        ],
+        [
+            721.5,
+            869.361083984375
+        ],
+        [
+            720.1112670898438,
+            981.4443359375
+        ],
+        [
+            908.5237426757813,
+            359.38873291015625
+        ],
+        [
+            937.09521484375,
+            530.8173217773438
+        ],
+        [
+            924.23779296875,
+            725.103271484375
+        ],
+        [
+            921.3809814453125,
+            900.8175659179688
+        ],
+        [
+            1071.380859375,
+            462.24603271484375
+        ],
+        [
+            1075.66650390625,
+            805.10302734375
+        ],
+        [
+            1234.2381591796875,
+            622.2457275390625
+        ],
+        [
+            1609.0391845703125,
+            732.8406982421875
+        ],
+        [
+            1430.93017578125,
+            716.6791381835938
+        ],
+        [
+            1262.04248046875,
+            828.900634765625
         ]
     ],
     "unmatched_inputs": null,
