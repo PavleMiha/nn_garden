@@ -1,15 +1,18 @@
-[submodule "bgfx"]
+[submodule "3rdparty/bgfx"]
 	path = 3rdparty/bgfx
 	url = https://github.com/bkaradzic/bgfx
-[submodule "bx"]
+[submodule "3rdparty/bx"]
 	path = 3rdparty/bx
 	url = https://github.com/bkaradzic/bx
-[submodule "glm"]
+[submodule "3rdparty/glm"]
 	path = 3rdparty/glm
 	url = https://github.com/g-truc/glm
-[submodule "bimg"]
+[submodule "3rdparty/bimg"]
 	path = 3rdparty/bimg
 	url = https://github.com/bkaradzic/bimg
-[submodule "glfw"]
+[submodule "3rdparty/glfw"]
 	path = 3rdparty/glfw
 	url = https://github.com/glfw/glfw
+[submodule "3rdparty/clip"]
+	path = 3rdparty/clip
+	url = https://github.com/dacap/clip.git
