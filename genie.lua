@@ -4,14 +4,15 @@ local PROJECT_DIR          = (path.getabsolute(".") .. "/")
 local PROJECT_BUILD_DIR    = path.join(PROJECT_DIR, "build/")
 local PROJECT_PROJECTS_DIR = path.join(PROJECT_DIR, "build/")
 local PROJECT_RUNTIME_DIR  = path.join(PROJECT_BUILD_DIR, "bin/")
-local DEPENDENCY_ROOT_DIR  = PROJECT_DIR
+local DEPENDENCY_ROOT_DIR  = path.join(PROJECT_DIR, "3rdparty/")
 
-BGFX_DIR        = path.join(DEPENDENCY_ROOT_DIR, "3rdparty/bgfx")
-BX_DIR          = path.join(DEPENDENCY_ROOT_DIR, "3rdparty/bx")
-BIMG_DIR        = path.join(DEPENDENCY_ROOT_DIR, "3rdparty/bimg")
-GLFW_DIR 		= path.join(DEPENDENCY_ROOT_DIR, "3rdparty/glfw")
-GLM_DIR			= path.join(DEPENDENCY_ROOT_DIR, "3rdparty/glm")
+BGFX_DIR        = path.join(DEPENDENCY_ROOT_DIR, "bgfx")
+BX_DIR          = path.join(DEPENDENCY_ROOT_DIR, "bx")
+BIMG_DIR        = path.join(DEPENDENCY_ROOT_DIR, "bimg")
+GLFW_DIR 		= path.join(DEPENDENCY_ROOT_DIR, "glfw")
+GLM_DIR			= path.join(DEPENDENCY_ROOT_DIR, "glm")
 IMGUI_DIR		= path.join(BGFX_DIR, "3rdparty/dear-imgui")
+CLIP_DIR		= path.join(DEPENDENCY_ROOT_DIR, "clip")
 
 -- Required for bgfx and example-common
 function copyLib()
@@ -167,6 +168,24 @@ solution "app"
 			"IMGUI_DISABLE_DEFAULT_ALLOCATORS"
 		}
 
+	project "clip"
+		kind "StaticLib"
+		language "C++"
+		
+		files {
+			path.join(CLIP_DIR, "clip.cpp"),
+			path.join(CLIP_DIR, "clip_win.cpp"),
+			path.join(CLIP_DIR, "image.cpp"),
+		}
+
+		links {
+			"shlwapi",
+		}
+
+		defines {
+			"CLIP_ENABLE_IMAGE=1"
+		}
+
 	startproject "nn_garden"
 	
 	project "nn_garden"
@@ -190,6 +209,7 @@ solution "app"
 							path.join(BGFX_DIR, "examples/common"),
 							path.join(BIMG_DIR, "include"),
 							path.join(BIMG_DIR, "3rdparty"),
+							CLIP_DIR,
 							IMGUI_DIR,
 							GLM_DIR
 		}
@@ -201,6 +221,7 @@ solution "app"
 							"bimg_decode",
 							"bx",
 							"imgui",
+							"clip",
 							"entry",
 							"shaderc"--not a library, but still a dependency if we need shaders
 		}
@@ -225,10 +246,12 @@ solution "app"
 				if string.find(file, "fs_") then shader_type = "fragment" end
 				custombuildtask {
 					{ file, PROJECT_BUILD_DIR .. "/bin/shaders/dx11/" .. path.getbasename(file) .. ".bin", { },
-					{"echo "..path.join(PROJECT_DIR, "scripts/build_shader_win.bat"),
-					 "echo " .. " $(<) ",
-					 "call " .. path.join(PROJECT_DIR, "scripts/build_shader_win.bat") .. " $(<) " .. shader_type}}
+						{"echo "..path.join(PROJECT_DIR, "scripts/build_shader_win.bat"),
+						 "echo " .. " $(<) ",
+						 --"call " .. path.join(PROJECT_DIR, "scripts/build_shader_win.bat") .. " $(<) " .. shader_type
 -- see https://stackoverflow.com/questions/3686837/why-are-my-custom-build-steps-not-running-in-visual-studio for why we need "call"
+						}
+					}
 				}
 			end
     	end

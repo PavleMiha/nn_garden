@@ -6,21 +6,90 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 
 
-#include "bigg.hpp"
 #include "value.h"
 #include <imnodes.h>
+#include "bgfx_utils.h"
 #include "imgui.h"
+#include "imgui/imgui.h"
 #include "node_editor.h"
 #include "context.h"
 #include "imgui_canvas.h"
+#include "common.h"
 
-
-class NNGarden : public bigg::Application
+class NNGarden : public entry::AppI
 {
-	void onReset() {
-		bgfx::setViewClear( 0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303841ff, 1.0f, 0 );
-		bgfx::setViewRect( 0, 0, 0, uint16_t( getWidth() ), uint16_t( getHeight() ) );
+public:
+	NNGarden(const char* _name, const char* _description, const char* _url)
+		: entry::AppI(_name, _description, _url)
+	{
 	}
+
+	uint32_t m_width;
+	uint32_t m_height;
+	uint32_t m_debug;
+	uint32_t m_reset;
+	bgfx::ProgramHandle m_program;
+	int64_t m_timeOffset;
+
+	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) override
+	{
+		Args args(_argc, _argv);
+
+		m_width = _width;
+		m_height = _height;
+		m_debug = BGFX_DEBUG_NONE;
+		m_reset = BGFX_RESET_VSYNC;
+
+		bgfx::Init init;
+		init.type = args.m_type;
+		init.vendorId = args.m_pciId;
+		init.platformData.nwh = entry::getNativeWindowHandle(entry::kDefaultWindowHandle);
+		init.platformData.ndt = entry::getNativeDisplayHandle();
+		init.platformData.type = entry::getNativeWindowHandleType();
+		init.resolution.width = m_width;
+		init.resolution.height = m_height;
+		init.resolution.reset = m_reset;
+		bgfx::init(init);
+
+		// Enable debug text.
+		bgfx::setDebug(m_debug);
+
+		// Set view 0 clear state.
+		bgfx::setViewClear(0
+			, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH
+			, 0x303030ff
+			, 1.0f
+			, 0
+		);
+
+		// Create program from shaders.
+		m_program = loadProgram("vs_cubes", "fs_cubes");
+
+		m_timeOffset = bx::getHPCounter();
+
+		imguiCreate();
+
+		ImNodes::CreateContext(0);
+		int width = 0;
+		int height = 0;
+		int comp = 0;
+
+		s_context.main_graph.initialise();
+		load("graph.json");
+	}
+
+	virtual int shutdown() override
+	{
+		imguiDestroy();
+
+		bgfx::destroy(m_program);
+
+		// Shutdown bgfx.
+		bgfx::shutdown();
+
+		return 0;
+	}
+
 	Context s_context;
 
 	int  frame_count = 0;
@@ -45,17 +114,7 @@ class NNGarden : public bigg::Application
 		s_context.load(filename);
 	}
 
-	void initialize(int _argc, char** _argv) {
-		ImNodes::CreateContext(0);
-		int width = 0;
-		int height = 0;
-		int comp = 0;
-		
-		s_context.main_graph.initialise();
-		load("graph.json");
-	}
-
-	void update( float dt ) {
+	bool update() override {
 		bgfx::touch( 0 );
 		if (frame_count == 0) {
 		}
@@ -97,7 +156,7 @@ class NNGarden : public bigg::Application
 			ImGui::EndPopup();
 		}
 
-		ImGui::DockSpaceOverViewport();
+		//ImGui::DockSpaceOverViewport();
 
 		//example::NodeEditorShow(dt, &graph_open);
 
@@ -114,17 +173,14 @@ class NNGarden : public bigg::Application
 		}
 		if (demo_open)
 			ImGui::ShowDemoWindow(&demo_open);
-	}
-public:
-	NNGarden()
-		: bigg::Application( "NNGarden" ) {
-		printf("NNGarden constructor\n");
 
+		return true;
 	}
 };
 
-NNGarden app;
-
-int main( int argc, char** argv ) {
-	return app.run( argc, argv );
-}
+ENTRY_IMPLEMENT_MAIN(
+	NNGarden
+	, "NNGarden"
+	, "Rendering simple static mesh."
+	, "https://bkaradzic.github.io/bgfx/examples.html#cubes"
+);

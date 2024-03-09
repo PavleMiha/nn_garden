@@ -15,8 +15,6 @@
 #include "clip.h"
 #include "json.hpp"
 
-#include "bigg.hpp"
-
 #define MAX_NODES 1024*1024
 #define MAX_CONNECTIONS_PER_NODE 64
 

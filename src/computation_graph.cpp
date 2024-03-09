@@ -1013,7 +1013,7 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 			ImNodes::EndNodeEditor();
 
 			if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {
-				if (ImGui::IsKeyDown(ImGuiKey_ModCtrl)) {
+				if (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl)) {
 					if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
 						undo();
 					}
