@@ -26,12 +26,18 @@ enum class Operation {
 	Function,
 	FunctionInput,
 	FunctionOutput,
-	Value,
+	Parameter,
+	Constant,
+	Result,
 	DataSource,
 };
 
 typedef unsigned Index;
 
+struct Socket {
+	Index node;
+	unsigned short slot;
+};
 struct Connection {
 public:
 	Connection(Index _start, unsigned short _start_slot, Index _end, unsigned short _end_slot) :
@@ -60,7 +66,7 @@ public:
 	ImVec2	   m_position;
 	bool	   m_positionDirty{ true };
 	float	   m_gradient{ 0.f };
-	Operation  m_operation{ Operation::Value };
+	Operation  m_operation{ Operation::Parameter };
 	uint8_t	   m_variableNumConnections{ 0 };
 	Connection m_inputs[MAX_INPUTS];//todo there's redundant information in here...
 	Index	   m_parent{ NULL_INDEX };
@@ -95,7 +101,19 @@ public:
 
 	static Value make_value() {
 		Value value;
-		value.m_operation = Operation::Value;
+		value.m_operation = Operation::Parameter;
+		return value;
+	}
+
+	static Value make_constant() {
+		Value value;
+		value.m_operation = Operation::Constant;
+		return value;
+	}
+
+	static Value make_result() {
+		Value value;
+		value.m_operation = Operation::Result;
 		return value;
 	}
 

@@ -1,4 +1,7 @@
 #include "context.h"
+#include "icons_font_awesome.h"
+
+extern ImFont* imguiIconFont;
 
 void Context::clear() {
 	//functions.clear();
@@ -12,6 +15,43 @@ void Context::clear() {
 
 int Context::create_function(const json& json_data) {
 	return 0;
+}
+
+void Context::show_training_menu(bool* open) {
+	if (*open) {
+		//ImGui::SetNextWindowSize(ImVec2(200, 100));
+		if (ImGui::Begin("Training Menu", open)) {
+			if (ImGui::Button(ICON_FA_REFRESH)) {
+				main_graph.randomize_parameters();
+			}
+			if (ImGui::BeginItemTooltip()) {
+				ImGui::Text("Randomize Parameters");
+				ImGui::EndTooltip();
+			}
+			ImGui::SameLine();
+			ImGui::Text("Learning Rate:");
+			ImGui::SameLine();
+			ImGui::PushItemWidth(120);
+			ImGui::InputFloat("##learning_rate", &learning_rate, 0.01f);
+			ImGui::PopItemWidth();
+
+			ImGui::SameLine();
+				
+			if (ImGui::Button(ICON_FA_ARROW_LEFT))
+			{
+				main_graph.do_stochastic_gradient_descent(learning_rate);
+			}
+
+			if (ImGui::BeginItemTooltip()) {
+				ImGui::Text("Do one step of learning");
+				ImGui::EndTooltip();
+			}
+
+			ImGui::SameLine();
+			ImGui::Button(ICON_FA_PLAY);
+		}
+		ImGui::End();
+	}
 }
 
 void Context::show_function_list(bool* open) {

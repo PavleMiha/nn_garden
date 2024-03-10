@@ -155,6 +155,21 @@ void ComputationGraph::delete_value_and_return_removed_connections(Index index, 
 	return;
 }
 
+
+void ComputationGraph::randomize_parameters() {
+	for (int i = 0; i < MAX_NODES; i++) {
+		if (used[i]) {
+			if (values[i].m_operation == Operation::Parameter) {
+				values[i].m_value = (float)rand() / (float)RAND_MAX;
+			}
+		}
+	}
+}
+
+void ComputationGraph::do_stochastic_gradient_descent(float learning_rate) {
+
+}
+
 void ComputationGraph::forwards(float* data_values) {
 	//first we find all the nodes with no parents
 	unordered_set <Index> checked;
@@ -289,32 +304,34 @@ json ComputationGraph::to_json(Index* indices, const ImVec2& origin, int num) {
 
 	for (int i = 0; i < num; i++) {
  		for (auto& it : j["nodes"][i]["inputs"]) {
-			if (index_to_json_index.find((Index)it["start"]) == index_to_json_index.end()) {
-				bool found = false;
+			if (it["start"] != NULL_INDEX) {
+				if (index_to_json_index.find((Index)it["start"]) == index_to_json_index.end()) {
+					bool found = false;
 
-				//look for an existing unmatched input, in case there's multiple inputs from the same node
-				for (auto& ui : unmatched_inputs) {
-					if (ui["index"] == it["start"] && ui["output_slot"] == it["output_slot"]) {
-						found = true;
-						it["start"] = ui["replacement_index"];
-						break;
+					//look for an existing unmatched input, in case there's multiple inputs from the same node
+					for (auto& ui : unmatched_inputs) {
+						if (ui["index"] == it["start"] && ui["output_slot"] == it["output_slot"]) {
+							found = true;
+							it["start"] = ui["replacement_index"];
+							break;
+						}
+					}
+
+					if (!found) {
+						json unmatched_input;
+						unmatched_input["original_start"] = it["start"];
+						unmatched_input["original_start_slot"] = it["start_slot"];
+						unmatched_input["end"] = j["nodes"][i]["index"];
+						unmatched_input["end_slot"] = it["end_slot"];
+						//unmatched_input["replacement_index"] = replacement_input_index;
+						unmatched_inputs.push_back(unmatched_input);
+						it["start"] = replacement_input_index++;
 					}
 				}
-
-				if (!found) {
-					json unmatched_input;
-					unmatched_input["original_start"] = it["start"];
-					unmatched_input["original_start_slot"] = it["start_slot"];
-					unmatched_input["end"] = j["nodes"][i]["index"];
-					unmatched_input["end_slot"] = it["end_slot"];
-					//unmatched_input["replacement_index"] = replacement_input_index;
-					unmatched_inputs.push_back(unmatched_input);
-					it["start"] = replacement_input_index++;
+				else
+				{
+					it["start"] = index_to_json_index[(Index)it["start"]];
 				}
-			}
-			else
-			{
-				it["start"] = index_to_json_index[(Index)it["start"]];
 			}
 		}
 	}
@@ -640,17 +657,34 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 
 	const float node_width = 70.0f;
 
+
 	if (i == current_backwards_node) {
 		ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(191, 109, 11, 255));
 		ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(194, 126, 45, 255));
 		ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(204, 148, 81, 255));
 	}
-
-	if (currentValue.m_operation == Operation::Value)
+	else
 	{
-		ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(0x69, 0x0f, 0x62, 255));
-		ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(0x8b, 0x26, 0x84, 255));
-		ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(0x94, 0x2e, 0x8c, 255));
+		if (currentValue.m_operation == Operation::Parameter)
+		{
+			ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(0x69, 0x0f, 0x62, 255));
+			ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(0x8b, 0x26, 0x84, 255));
+			ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(0x94, 0x2e, 0x8c, 255));
+		}
+
+		if (currentValue.m_operation == Operation::Constant)
+		{
+			ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(0x23, 0xa4, 0x42, 255));
+			ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(0x51, 0xcb, 0x6b, 255));
+			ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(0x7c, 0xd8, 0x92, 255));
+		}
+
+		if (currentValue.m_operation == Operation::Result)
+		{
+			ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(0x25, 0x96, 0xbe, 255));
+			ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(0x66, 0xb6, 0xd2, 255));
+			ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(0x7c, 0xc0, 0xd8, 255));
+		}
 	}
 
 	//ToDo: This could cause issues if we run it before we ever run begin node for any node
@@ -668,6 +702,9 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 		break;
 	case Operation::FunctionOutput:
 		ImGui::TextUnformatted("output");
+		break;
+	case Operation::Result:
+		ImGui::TextUnformatted("result");
 		break;
 	case Operation::Function:
 	{
@@ -693,8 +730,11 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 	case Operation::Tanh:
 		ImGui::TextUnformatted("tanh");
 		break;
-	case Operation::Value:
-		ImGui::TextUnformatted("value");
+	case Operation::Parameter:
+		ImGui::TextUnformatted("param");
+		break;
+	case Operation::Constant:
+		ImGui::TextUnformatted("constant");
 		break;
 	case Operation::DataSource:
 		ImGui::TextUnformatted("data");
@@ -707,50 +747,67 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 	unsigned attribute_index = i * MAX_CONNECTIONS_PER_NODE;
 
 	switch (currentValue.m_operation) {
+	case Operation::Parameter:
+	case Operation::Constant:
+	{
+		ImGui::PushItemWidth(node_width);
+		ImGui::DragFloat(
+			"##hidelabel", &currentValue.m_value, 0.01f);
+		ImGui::PopItemWidth();
+
+		ImNodes::BeginOutputAttribute(attribute_index + MAX_INPUTS);
+		if (currentValue.m_operation == Operation::Parameter)
+		{
+			char text[128];
+			sprintf(text, "grad %.1f", currentValue.m_gradient);
+
+			const float label_width = ImGui::CalcTextSize(text).x;
+			ImGui::Indent(node_width - label_width);
+			ImGui::Text(text, currentValue.m_gradient);
+		}
+
+		ImNodes::EndOutputAttribute();
+	}
+	break;
+	case Operation::Result:
+	{
+		ImNodes::BeginInputAttribute(attribute_index);
+		ImGui::PushItemWidth(node_width);
+		char text[128];
+		sprintf(text, "%.3f", currentValue.m_value);
+		ImGui::Text(text);
+		ImGui::PopItemWidth();
+		ImNodes::EndInputAttribute();
+	}
+	break;
 	case Operation::Add:
 	case Operation::Subtract:
 	case Operation::Divide:
 	case Operation::Multiply:
 	case Operation::Power:
-	case Operation::Value:
 	{
 		for (int input = 0; input < 2; input++) {
-			if (currentValue.m_operation != Operation::Value) {
-				ImNodes::BeginInputAttribute(attribute_index + input);
-			}
+			ImNodes::BeginInputAttribute(attribute_index + input);
 
 			if (input == 0) {
-				if (currentValue.m_operation == Operation::Value) {
-					const float label_width = ImGui::CalcTextSize("value").x;
+				char text[128];
+				sprintf(text, "%.1f", currentValue.m_value);
 
-					ImGui::PushItemWidth(node_width - label_width);
-					ImGui::DragFloat(
-						"##hidelabel", &currentValue.m_value, 0.01f);
-					ImGui::PopItemWidth();
-				}
-				else {
-					char text[128];
-					sprintf(text, "%.1f", currentValue.m_value);
-
-					const float label_width = ImGui::CalcTextSize(text).x;
-					ImGui::Indent(node_width - label_width);
-					ImGui::Text(text);
-				}
+				const float label_width = ImGui::CalcTextSize(text).x;
+				ImGui::Indent(node_width - label_width);
+				ImGui::Text(text);
 			}
 
 			if (input == 1) {
-				if (currentValue.m_operation != Operation::Function) {
-					char text[128];
-					sprintf(text, "grad %.1f", currentValue.m_gradient);
+				char text[128];
+				sprintf(text, "grad %.1f", currentValue.m_gradient);
 
-					const float label_width = ImGui::CalcTextSize(text).x;
-					ImGui::Indent(node_width - label_width);
-					ImGui::Text(text, currentValue.m_gradient);
-				}
+				const float label_width = ImGui::CalcTextSize(text).x;
+				ImGui::Indent(node_width - label_width);
+				ImGui::Text(text, currentValue.m_gradient);
 			}
-			if (currentValue.m_operation != Operation::Value) {
-				ImNodes::EndInputAttribute();
-			}
+
+			ImNodes::EndInputAttribute();
 		}
 
 		ImNodes::BeginOutputAttribute(attribute_index + MAX_INPUTS);
@@ -830,7 +887,10 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 		IM_ASSERT(0 && "Missing body for operation type");
 		break;
 	}
-	if (i == current_backwards_node || currentValue.m_operation == Operation::Value) {
+	if (i == current_backwards_node ||
+		currentValue.m_operation == Operation::Parameter ||
+		currentValue.m_operation == Operation::Constant ||
+		currentValue.m_operation == Operation::Result) {
 		ImNodes::PopColorStyle();
 		ImNodes::PopColorStyle();
 		ImNodes::PopColorStyle();
@@ -1075,8 +1135,15 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 				const ImVec2 screen_click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 				ImVec2 click_pos = ImNodes::ScreenSpaceToGridSpace(screen_click_pos);
 
-				if (ImGui::MenuItem("Create Value Node")) {
+				if (ImGui::MenuItem("Create Parameter Node")) {
 					Value value = Value::make_value();
+					value.m_position = click_pos;
+					EditOperation edit_operation = EditOperation::add_node(value);
+					apply_operation(edit_operation);
+				}
+
+				if (ImGui::MenuItem("Create Constant Node")) {
+					Value value = Value::make_constant();
 					value.m_position = click_pos;
 					EditOperation edit_operation = EditOperation::add_node(value);
 					apply_operation(edit_operation);
@@ -1120,6 +1187,12 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 				}
 				if (ImGui::MenuItem("Create Data Source Node")) {
 					Value value = Value::make_data_source();
+					value.m_position = click_pos;
+					EditOperation edit_operation = EditOperation::add_node(value);
+					apply_operation(edit_operation);
+				}
+				if (ImGui::MenuItem("Create Result Node")) {
+					Value value = Value::make_result();
 					value.m_position = click_pos;
 					EditOperation edit_operation = EditOperation::add_node(value);
 					apply_operation(edit_operation);

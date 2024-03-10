@@ -87,6 +87,7 @@ public:
 	ImNodesMiniMapLocation minimap_location;
 	DataSource			   data_source;
 
+
 	void clear();
 
 	ComputationGraph() {
@@ -106,6 +107,10 @@ public:
 	Index get_new_value();
 
 	void delete_value_and_return_removed_connections(Index index, vector<Connection>& removed_connections);
+
+	void randomize_parameters();
+	
+	void do_stochastic_gradient_descent(float learning_rate);
 
 	void forwards(float* data_values);
 

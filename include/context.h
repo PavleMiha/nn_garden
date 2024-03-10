@@ -6,6 +6,8 @@ class Context {
 public:
 	Index					   current_backwards_node = NULL_INDEX;
 	ComputationGraph		   main_graph;
+	float					   learning_rate = 0.01f;
+
 	map<int, ComputationGraph> function_graphs;
 	std::vector<Function>	   functions;
 
@@ -17,6 +19,8 @@ public:
 	void clear();
 
 	int create_function(const json& json_data);
+
+	void show_training_menu(bool* open);
 
 	void show_function_list(bool* open);
 

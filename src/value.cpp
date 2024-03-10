@@ -10,7 +10,7 @@ json Value::to_json() {
 	for (int i = 0; i < MAX_INPUTS; i++) {
 		if (m_inputs[i].end != NULL_INDEX) {
 			j["inputs"][i]["end"]		 = m_inputs[i].end;
-			j["inputs"][i]["end_slot"]   = m_inputs[i].end_slot;
+			j["inputs"][i]["end_slot"]   = i;
 			j["inputs"][i]["start"]      = m_inputs[i].start;
 			j["inputs"][i]["start_slot"] = m_inputs[i].start_slot;
 		}
@@ -91,6 +91,9 @@ void Value::single_forwards(Value* values, float* data_values) {
 	case Operation::Tanh:
 		m_value = std::tanh(get_input_value(values, 0, data_values));
 		break;
+	case Operation::Result:
+		m_value = get_input_value(values, 0, data_values);
+		break;
 	default:
 		//assert((false && "Unknown operation"));
 		break;
@@ -143,6 +146,11 @@ void Value::single_backwards(Value* values, float* data_values) {
 	case Operation::Tanh:
 		if (m_inputs[0].start != NULL_INDEX) {
 			values[m_inputs[0].start].m_gradient += m_gradient * (1.0f - std::powf(m_value, 2));
+		}
+		break;
+	case Operation::Result:
+		if (m_inputs[0].start != NULL_INDEX) {
+			values[m_inputs[0].start].m_gradient += m_gradient;
 		}
 		break;
 

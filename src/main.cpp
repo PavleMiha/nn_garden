@@ -25,9 +25,14 @@ class NNGarden : public bigg::Application
 
 	int  frame_count = 0;
 	bool graph_open = true;
+	bool training_menu_open = true;
 	bool functions_open = true;
 	bool demo_open = false;
 	bool perf_open = false;
+
+	void show_training_menu(bool* open) {
+		s_context.show_training_menu(open);
+	}
 
 	void show_function_list(bool* open) {
 		s_context.show_function_list(open);
@@ -82,6 +87,7 @@ class NNGarden : public bigg::Application
 		{
 			ImGui::MenuItem("Graph Window", "", &graph_open);
 			ImGui::MenuItem("Functions", "", &functions_open);
+			ImGui::MenuItem("Training Menu", "", &training_menu_open);
 			ImGui::MenuItem("Demo Window", "", &demo_open);
 			ImGui::MenuItem("Performance", "", &perf_open);
 
@@ -101,6 +107,7 @@ class NNGarden : public bigg::Application
 
 		//example::NodeEditorShow(dt, &graph_open);
 
+		show_training_menu(&training_menu_open);
 		show_function_list(&functions_open);
 		show_graph_editor(&graph_open);
 		

@@ -2,8 +2,11 @@
  * This is free and unencumbered software released into the public domain. 
  */
 
+#include "icons_font_awesome.h"
+
 static bgfx::VertexLayout  imguiVertexLayout;
 static bgfx::TextureHandle imguiFontTexture;
+ImFont*			   imguiIconFont;
 static bgfx::UniformHandle imguiFontUniform;
 static bgfx::ProgramHandle imguiProgram;
 static void                imguiRender( ImDrawData* drawData );
@@ -31,9 +34,27 @@ static void imguiInit( GLFWwindow* window )
 		.add( bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true )
 		.end();
 
+	ImFontConfig config;
+	config.SizePixels = 16.0f;
 	// Create font
-	io.Fonts->AddFontDefault();
+	io.Fonts->AddFontDefault(&config);
+
+	config.FontDataOwnedByAtlas = false;
+	config.MergeMode = false;
+	//			config.MergeGlyphCenterV = true;
+
+	config.MergeMode = true;
+	config.DstFont = io.FontDefault;
+
+	ImWchar range[3] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+	io.Fonts->AddFontFromFileTTF("fontawesome-webfont.ttf"
+		, 13.f
+		, &config
+		, range
+	);
+
 	io.Fonts->GetTexDataAsRGBA32( &data, &width, &height );
+
 	imguiFontTexture = bgfx::createTexture2D( ( uint16_t )width, ( uint16_t )height, false, 1, bgfx::TextureFormat::BGRA8, 0, bgfx::copy( data, width*height * 4 ) );
 	imguiFontUniform = bgfx::createUniform( "s_tex", bgfx::UniformType::Sampler );
 
