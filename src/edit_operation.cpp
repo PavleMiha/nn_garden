@@ -19,10 +19,10 @@ void EditOperation::apply(ComputationGraph* context) {
 		context->used[m_index] = false;
 		break;
 	case EditOperationType::AddLink:
-		context->values[m_index].m_inputs[m_connection.end_slot] = m_connection;
+		context->values[m_index].m_inputs[m_connection.end.slot] = m_connection.start;
 		break;
 	case EditOperationType::RemoveLink:
-		context->values[m_index].m_inputs[m_connection.end_slot] = Connection();
+		context->values[m_index].m_inputs[m_connection.end.slot] = Socket();
 		break;
 	case EditOperationType::MoveNodes:
 		context->values[m_index].m_position += m_pos_delta;
@@ -51,10 +51,10 @@ void EditOperation::undo(ComputationGraph* context) {
 	}
 	break;
 	case EditOperationType::AddLink:
-		context->values[m_index].m_inputs[m_connection.end_slot] = Connection();
+		context->values[m_index].m_inputs[m_connection.end.node] = Socket();
 		break;
 	case EditOperationType::RemoveLink:
-		context->values[m_index].m_inputs[m_connection.end_slot] = m_connection;
+		context->values[m_index].m_inputs[m_connection.end.slot] = m_connection.start;
 		break;
 	case EditOperationType::MoveNodes:
 		context->values[m_index].m_position -= m_pos_delta;
@@ -85,7 +85,7 @@ EditOperation EditOperation::remove_node(const Index index, const bool _final) {
 EditOperation EditOperation::add_connection(const Connection& connection, const bool _final) {
 	EditOperation op;
 	op.m_type = EditOperationType::AddLink;
-	op.m_index = connection.end;
+	op.m_index = connection.end.node;
 	op.m_connection = connection;
 	op.m_final = _final;
 	return op;

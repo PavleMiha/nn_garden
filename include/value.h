@@ -23,6 +23,9 @@ enum class Operation {
 	Divide,
 	Power,
 	Tanh,
+	Sin,
+	Cos,
+	Sqrt,
 	Function,
 	FunctionInput,
 	FunctionOutput,
@@ -35,19 +38,20 @@ enum class Operation {
 typedef unsigned Index;
 
 struct Socket {
+	Socket(Index _node, unsigned short _slot) : node(_node), slot(_slot) {};
+	Socket() : node(NULL_INDEX), slot(0) {};
 	Index node;
 	unsigned short slot;
 };
+
 struct Connection {
 public:
 	Connection(Index _start, unsigned short _start_slot, Index _end, unsigned short _end_slot) :
-		start(_start), start_slot(_start_slot), end(_end), end_slot(_end_slot) {};
-	Connection() : start(NULL_INDEX), start_slot(0), end(NULL_INDEX), end_slot(0) {};
-
-	Index start				  { NULL_INDEX };
-	Index end			      { NULL_INDEX };
-	unsigned short start_slot { 0 };
-	unsigned short end_slot   { 0 };
+		start(_start, _start_slot), end(_end, _end_slot) {};
+	Connection() : start(), end() {};
+	
+	Socket start;
+	Socket end;
 };
 
 class FunctionNodeData {
@@ -62,13 +66,15 @@ public:
 class Value {
 public:
 	Index	   m_index{ NULL_INDEX };
+	char*	   m_name = nullptr;
 	float	   m_value{ 0.f };
 	ImVec2	   m_position;
 	bool	   m_positionDirty{ true };
 	float	   m_gradient{ 0.f };
+	bool	   m_gradient_calculated{ false };
 	Operation  m_operation{ Operation::Parameter };
 	uint8_t	   m_variableNumConnections{ 0 };
-	Connection m_inputs[MAX_INPUTS];//todo there's redundant information in here...
+	Socket	   m_inputs[MAX_INPUTS];//todo there's redundant information in here...
 	Index	   m_parent{ NULL_INDEX };
 
 	json to_json();

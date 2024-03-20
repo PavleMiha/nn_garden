@@ -154,6 +154,8 @@ public:
 
 	unsigned get_attribute_output_index(Index i, unsigned output);
 
+	void render_gradient(Index i, float node_width);
+
 	void show_node(Index i, vector<Function>& functions);
 
 	void show_connection(Connection connection);

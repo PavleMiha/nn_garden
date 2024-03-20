@@ -106,7 +106,7 @@ static void imguiEvents( float dt )
 	io.DisplayFramebufferScale = ImVec2( w > 0 ? ( ( float )displayW / w ) : 0, h > 0 ? ( ( float )displayH / h ) : 0 );
 
 	// Setup time step
-	io.DeltaTime = dt;
+	io.DeltaTime = std::max(dt, 0.001f);
 
 	// Update mouse position
 	const ImVec2 mouse_pos_backup = io.MousePos;

@@ -48,7 +48,17 @@ void Context::show_training_menu(bool* open) {
 			}
 
 			ImGui::SameLine();
-			ImGui::Button(ICON_FA_PLAY);
+			if (m_training) {
+				if (ImGui::Button(ICON_FA_PAUSE)) {
+					m_training = false;
+				}
+			}
+			else if (ImGui::Button(ICON_FA_PLAY)) {
+				m_training = true;
+			}
+			ImGui::Text("Steps: %i", training_steps);
+			ImGui::SameLine();
+			ImGui::Text("Average Error: %.3f", current_average_error);
 		}
 		ImGui::End();
 	}
@@ -89,11 +99,9 @@ void Context::create_function_graph(int function_id) {
 	for (auto& node : function.m_json["nodes"]) {
 		for (int i = 0; i < node["inputs"].size(); i++) {
 			if (node["inputs"][i]["index"] >= num_nodes) {
-				Connection& input = function_graph.values[node["index"]].m_inputs[i];
-				input.start = input_node_index;
-				input.start_slot = node["inputs"][i]["index"]-num_nodes;
-				input.end_slot = node["inputs"][i]["input_slot"];
-				input.end = node["index"];
+				Socket& input = function_graph.values[node["index"]].m_inputs[i];
+				input.node = input_node_index;
+				input.slot = node["inputs"][i]["index"]-num_nodes;
 				function_graph.values[input_node_index].m_variableNumConnections++;
 			}
 		}
@@ -102,12 +110,30 @@ void Context::create_function_graph(int function_id) {
 	function_graph.values[output_node_index].m_variableNumConnections = 0;
 
 	for (int i = 0; i < function.m_json["unmatched_outputs"].size(); i++) {
-		function_graph.values[output_node_index].m_inputs[i].start = functions[function_id].m_json["unmatched_outputs"][i]["index"];
+		function_graph.values[output_node_index].m_inputs[i].node = functions[function_id].m_json["unmatched_outputs"][i]["index"];
 		function_graph.values[output_node_index].m_variableNumConnections++;
 	}
 }
 
 void Context::show(bool* open) {
+	if (m_training) {
+		double startTime = glfwGetTime();
+		Index data_source_index = NULL_INDEX;
+		for (int i = 0; i < MAX_NODES; i++) {
+			if (main_graph.values[i].m_operation == Operation::DataSource) {
+				data_source_index = i;
+				break;
+			}
+		}
+
+		while (glfwGetTime() - startTime < (1.0f/30.f)) {
+			main_graph.data_source.set_current_data_point(
+				(main_graph.data_source.current_data_point + 1)%main_graph.data_source.data.size());
+			main_graph.do_stochastic_gradient_descent(learning_rate);
+			current_average_error = main_graph.values[main_graph.current_backwards_node].m_value * 0.01f + current_average_error * 0.99f;
+			training_steps++;
+		}
+	}
 	main_graph.show(0, open, functions, "main graph");
 	for (int function_id = 0; function_id < functions.size(); function_id++) {
 		if (functions[function_id].m_is_open) {
