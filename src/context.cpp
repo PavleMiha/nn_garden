@@ -21,6 +21,28 @@ void Context::show_training_menu(bool* open) {
 	if (*open) {
 		//ImGui::SetNextWindowSize(ImVec2(200, 100));
 		if (ImGui::Begin("Training Menu", open)) {
+			const char* items[] = { "flat.csv", "wavy.csv", "donut.csv", "spiral.csv" };
+
+			static int item_current_idx = 0;                    // Here our selection data is an index.
+			const char* combo_label = items[item_current_idx];
+
+			ImGui::SetNextItemWidth(200);
+			if (ImGui::BeginCombo("##combo", combo_label)) {
+				for (int n = 0; n < IM_ARRAYSIZE(items); n++) {
+					const bool is_selected = (item_current_idx == n);
+					if (ImGui::Selectable(items[n], is_selected)) {
+						item_current_idx = n;
+
+						main_graph.data_source.load(items[n]);
+					}
+
+					// Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+					if (is_selected)
+						ImGui::SetItemDefaultFocus();
+				}
+				ImGui::EndCombo();
+			}
+
 			if (ImGui::Button(ICON_FA_REFRESH)) {
 				main_graph.randomize_parameters();
 			}
@@ -116,7 +138,7 @@ void Context::create_function_graph(int function_id) {
 }
 
 void Context::show(bool* open) {
-	if (m_training) {
+	if (m_training && main_graph.current_backwards_node != NULL_INDEX) {
 		double startTime = glfwGetTime();
 		Index data_source_index = NULL_INDEX;
 		for (int i = 0; i < MAX_NODES; i++) {
@@ -128,12 +150,13 @@ void Context::show(bool* open) {
 
 		while (glfwGetTime() - startTime < (1.0f/30.f)) {
 			main_graph.data_source.set_current_data_point(
-				(main_graph.data_source.current_data_point + 1)%main_graph.data_source.data.size());
+				rand() % main_graph.data_source.data.size());
 			main_graph.do_stochastic_gradient_descent(learning_rate);
-			current_average_error = main_graph.values[main_graph.current_backwards_node].m_value * 0.01f + current_average_error * 0.99f;
+			current_average_error = main_graph.values[main_graph.current_backwards_node].m_value * 0.001f + current_average_error * 0.999f;
 			training_steps++;
 		}
 	}
+
 	main_graph.show(0, open, functions, "main graph");
 	for (int function_id = 0; function_id < functions.size(); function_id++) {
 		if (functions[function_id].m_is_open) {

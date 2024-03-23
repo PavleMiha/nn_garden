@@ -54,8 +54,8 @@ static const int x_offsets[5][2] = {
 class DataSource {
 public:
 
-	ImVec2 min = ImVec2(-10, -10);
-	ImVec2 max = ImVec2(10, 10);
+	ImVec2 min = ImVec2(-1, -1);
+	ImVec2 max = ImVec2(1, 1);
 	int current_data_point = 0;
 	std::vector<DataPoint> data;
 
@@ -65,7 +65,7 @@ public:
 
 	void set_current_data_point(int index);
 
-	bool load();
+	bool load(const char* filename);
 
 	void update_image();
 	void show_body(int attribute_index);
@@ -115,7 +115,7 @@ public:
 	void forwards(float* data_values);
 
 	void initialise() {
-		data_source.load();
+		data_source.load("wavy.csv");
 		data_source.set_current_data_point(0);
 	}
 	void zero_gradients();

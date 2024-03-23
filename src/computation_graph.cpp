@@ -581,9 +581,9 @@ unsigned ComputationGraph::get_attribute_output_index(Index i, unsigned output) 
 	}
 }
 
-bool DataSource::load() {
+bool DataSource::load(const char* filename) {
 	std::string line;
-	std::ifstream file("points_data.csv");
+	std::ifstream file(filename);
 
 	// Check if file is open
 	if (!file.is_open()) {
@@ -591,6 +591,7 @@ bool DataSource::load() {
 		return false;
 	}
 
+	data.clear();
 	// Read lines from the CSV file
 	while (getline(file, line)) {
 		std::stringstream ss(line);
@@ -630,6 +631,15 @@ void DataSource::update_image() {
 			}
 		}
 	}
+	min = ImVec2(FLT_MAX, FLT_MAX);
+	max = ImVec2(-FLT_MAX, -FLT_MAX);
+
+	for (int i = 0; i < data.size(); i++) {
+		min.x = ImMin(min.x, data[i].x);
+		min.y = ImMin(min.y, data[i].y);
+		max.x = ImMax(max.x, data[i].x);
+		max.y = ImMax(max.y, data[i].y);
+	}
 
 	for (int i = 0; i < data.size(); i++) {
 		DataPoint& point = data[i];
@@ -658,6 +668,7 @@ void DataSource::set_current_data_point(int index) {
 }
 
 void DataSource::show_body(int attribute_index) {
+
 	if (image_handle.idx != UINT16_MAX)
 		ImGui::Image((ImTextureID)image_handle.idx, ImVec2(100, 100));
 
@@ -1320,6 +1331,14 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 			}
 
 			if (ImGui::BeginPopup("node hovered")) {
+				if (ImGui::MenuItem("Backward Pass")) {
+					EditOperation op = EditOperation();
+					op.m_index = last_node_hovered;
+					op.m_type = EditOperationType::SetBackwardsNode;
+					op.m_final = true;
+					apply_operation(op);
+				}
+
 				if (ImGui::MenuItem("Backward Pass")) {
 					EditOperation op = EditOperation();
 					op.m_index = last_node_hovered;
