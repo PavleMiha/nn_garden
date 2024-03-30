@@ -23,6 +23,7 @@ enum class Operation {
 	Divide,
 	Power,
 	Tanh,
+	ReLU,
 	Sin,
 	Cos,
 	Sqrt,
@@ -31,7 +32,9 @@ enum class Operation {
 	FunctionOutput,
 	Parameter,
 	Constant,
+	Display,
 	Result,
+	Backwards,
 	DataSource,
 };
 
@@ -40,6 +43,8 @@ typedef unsigned Index;
 struct Socket {
 	Socket(Index _node, unsigned short _slot) : node(_node), slot(_slot) {};
 	Socket() : node(NULL_INDEX), slot(0) {};
+	json to_json() const;
+	void from_json(json j);
 	Index node;
 	unsigned short slot;
 };
@@ -57,8 +62,8 @@ public:
 class FunctionNodeData {
 public:
 	short				   m_function_id;
-	vector<Connection>	   m_function_input_nodes;
-	vector<Connection>	   m_function_output_nodes;
+	vector<Socket>	   m_function_input_nodes;
+	vector<Socket>	   m_function_output_nodes;
 };
 
 #define MAX_INPUTS 16
@@ -77,7 +82,7 @@ public:
 	Socket	   m_inputs[MAX_INPUTS];//todo there's redundant information in here...
 	Index	   m_parent{ NULL_INDEX };
 
-	json to_json();
+	json to_json() const;
 
 	void from_json(json j);
 
@@ -119,7 +124,7 @@ public:
 
 	static Value make_result() {
 		Value value;
-		value.m_operation = Operation::Result;
+		value.m_operation = Operation::Display;
 		return value;
 	}
 

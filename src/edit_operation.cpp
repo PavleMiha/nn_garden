@@ -9,12 +9,24 @@ void EditOperation::apply(ComputationGraph* context) {
 			index = context->get_new_value();
 		context->values[index] = m_value;
 		context->values[index].m_index = index;
+		if (context->values[index].m_operation == Operation::Backwards) {
+			context->current_backwards_node = index;
+		}
+		if (context->values[index].m_operation == Operation::Result) {
+			context->current_result_node = index;
+		}
 		m_value.m_index = index;
 		m_index = index;
 	}
 	break;
 	case EditOperationType::RemoveNode:
 		m_value = context->values[m_index];
+		if (context->values[m_index].m_operation == Operation::Backwards) {
+			context->current_backwards_node = NULL_INDEX;
+		}
+		if (context->values[m_index].m_operation == Operation::Result) {
+			context->current_result_node = NULL_INDEX;
+		}
 		context->values[m_index] = Value();
 		context->used[m_index] = false;
 		break;
@@ -26,10 +38,6 @@ void EditOperation::apply(ComputationGraph* context) {
 		break;
 	case EditOperationType::MoveNodes:
 		context->values[m_index].m_position += m_pos_delta;
-		break;
-	case EditOperationType::SetBackwardsNode:
-		m_previousIndex = context->current_backwards_node;
-		context->current_backwards_node = m_index;
 		break;
 	default:
 		break;
@@ -59,9 +67,6 @@ void EditOperation::undo(ComputationGraph* context) {
 	case EditOperationType::MoveNodes:
 		context->values[m_index].m_position -= m_pos_delta;
 		context->values[m_index].m_positionDirty = true;
-		break;
-	case EditOperationType::SetBackwardsNode:
-		context->current_backwards_node = m_previousIndex;
 		break;
 	}
 }

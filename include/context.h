@@ -8,10 +8,13 @@ public:
 	ComputationGraph		   main_graph;
 	float					   learning_rate = 0.01f;
 	int						   training_steps = 0;
+	int						   training_steps_this_interval = 0;
 	float					   current_average_error = 0;
 
 	map<int, ComputationGraph> function_graphs;
 	std::vector<Function>	   functions;
+
+	double					   tps_last_time;
 
 	bool					   m_training = false;	
 

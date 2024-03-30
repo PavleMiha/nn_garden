@@ -78,9 +78,19 @@ void Context::show_training_menu(bool* open) {
 			else if (ImGui::Button(ICON_FA_PLAY)) {
 				m_training = true;
 			}
+			ImGui::SameLine();
+			if (ImGui::Button(ICON_FA_PAINT_BRUSH)) {
+				main_graph.data_source.update_image(&main_graph);
+			}
+
+			double current_time = ImGui::GetTime();
+
+			double delta = tps_last_time - current_time;
 			ImGui::Text("Steps: %i", training_steps);
+			ImGui::Text("tps: %.3f", (delta / (double)training_steps_this_interval) * 1000.0f);
 			ImGui::SameLine();
 			ImGui::Text("Average Error: %.3f", current_average_error);
+			tps_last_time = current_time;
 		}
 		ImGui::End();
 	}
@@ -96,8 +106,8 @@ void Context::show_function_list(bool* open) {
 				ImGui::SameLine();
 				ImGui::MenuItem("Open", "", &functions[i].m_is_open);
 			}
-			ImGui::End();
 		}
+		ImGui::End();
 	}
 }
 
@@ -148,13 +158,18 @@ void Context::show(bool* open) {
 			}
 		}
 
+		training_steps_this_interval = 0;
+
 		while (glfwGetTime() - startTime < (1.0f/30.f)) {
 			main_graph.data_source.set_current_data_point(
 				rand() % main_graph.data_source.data.size());
 			main_graph.do_stochastic_gradient_descent(learning_rate);
 			current_average_error = main_graph.values[main_graph.current_backwards_node].m_value * 0.001f + current_average_error * 0.999f;
+			
 			training_steps++;
+			training_steps_this_interval++;
 		}
+		main_graph.data_source.update_image(&main_graph);
 	}
 
 	main_graph.show(0, open, functions, "main graph");
@@ -177,12 +192,66 @@ void Context::show(bool* open) {
 }
 
 void Context::save(const char* filename) {
-	main_graph.save(filename);
+	json save_json = json();
+	json main_graph_json = main_graph.to_json();
+
+	save_json["main_graph"] = main_graph_json;
+
+	json functions_json = json();
+
+	for (int i = 0; i < functions.size(); i++) {
+		json function_json = json();
+		function_json["json"] = functions[i].m_json;
+		function_json["num_inputs"] = functions[i].m_num_inputs;
+		function_json["num_outputs"] = functions[i].m_num_outputs;
+		function_json["name"] = functions[i].m_name;
+		functions_json.push_back(function_json);
+	}
+	save_json["functions"] = functions_json;
+
+	FILE* save_file = fopen(filename, "w");
+	std::string dump = save_json.dump(4);
+	fwrite(dump.c_str(), 1, dump.size(), save_file);
+	fclose(save_file);
 }
 
 void Context::load(const char* filename) {
 	//ImNodes::BeginNodeEditor(0);
-	main_graph.load(filename);
-	//ImNodes::EndNodeEditor();
+	json content = json();
+	FILE* save_file = fopen(filename, "rb");
+
+	if (save_file) {
+		fseek(save_file, 0, SEEK_END);
+		long size = ftell(save_file);
+		if (size != -1L) {
+			fseek(save_file, 0, SEEK_SET);
+			char* buffer = new char[size + 1];
+			fread(buffer, 1, (size_t)size, save_file);
+			buffer[size] = 0;
+			fclose(save_file);
+			content = json::parse(buffer);
+			delete[] buffer;
+			clear();
+		}
+		else {
+			return;
+		}
+	}
+	else {
+		return;
+	}
+
+	main_graph.from_json(content["main_graph"], ImVec2());
+
+	for (int i = 0; i < content["functions"].size(); i++) {
+		Function function;
+		function.m_json = content["functions"][i]["json"];
+		function.m_is_open = false;
+		function.m_num_inputs = content["functions"][i]["num_inputs"];
+		function.m_num_outputs = content["functions"][i]["num_outputs"];
+		std::string name = content["functions"][i]["name"];
+		strcpy(function.m_name, name.c_str());
+		functions.push_back(function);
+	}
 }
 

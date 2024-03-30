@@ -10,7 +10,6 @@ enum class EditOperationType {
 	AddLink,
 	RemoveLink,
 	MoveNodes,
-	SetBackwardsNode
 };
 
 class EditOperation {
