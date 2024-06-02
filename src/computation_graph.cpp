@@ -157,7 +157,7 @@ void ComputationGraph::delete_value_and_return_removed_connections(Index index, 
 }
 
 std::default_random_engine generator;
-std::normal_distribution<double> distribution(0.0, 0.1);
+std::uniform_real_distribution<double> distribution(-1.0, 1.0);
 
 void ComputationGraph::randomize_parameters() {
 	for (int i = 0; i < MAX_NODES; i++) {
@@ -169,7 +169,16 @@ void ComputationGraph::randomize_parameters() {
 	}
 }
 
-void ComputationGraph::do_stochastic_gradient_descent(float learning_rate) {
+void ComputationGraph::do_stochastic_gradient_descent_step(float learning_rate) {
+	for (int i = 0; i < MAX_NODES; i++) {
+		if (used[i]) {
+			if (values[i].m_operation != Operation::Parameter && values[i].m_operation != Operation::Constant) {
+				values[i].m_value = 0.f;
+			}
+			values[i].m_gradient = 0.f;
+			values[i].m_gradient_calculated = false;
+		}
+	}
 	forwards(&data_source.data[data_source.current_data_point].x);
 
 	if (current_backwards_node != NULL_INDEX)
@@ -184,13 +193,43 @@ void ComputationGraph::do_stochastic_gradient_descent(float learning_rate) {
 	}
 }
 
+void ComputationGraph::do_stochastic_gradient_descent(float learning_rate, int batch_size, int& current_point, const vector<int> shuffled_points) {
+	memset(gradient_acc, 0, sizeof(gradient_acc));
+
+	for (int i = 0; i < batch_size; i++) {
+		data_source.current_data_point = shuffled_points[current_point];
+		current_point = (current_point+1)%shuffled_points.size();
+		forwards(&data_source.data[data_source.current_data_point].x);
+		if (current_backwards_node != NULL_INDEX)
+			backwards(&data_source.data[data_source.current_data_point].x);
+		for (int i = 0; i < next_free_index; i++) {
+			if (used[i]) {
+				if (values[i].m_operation == Operation::Parameter) {
+					gradient_acc[i] += values[i].m_gradient;
+				}
+			}
+		}
+	}
+
+	for (int i = 0; i < next_free_index; i++) {
+		if (used[i]) {
+			float rate = learning_rate / (float)batch_size;
+			if (values[i].m_operation == Operation::Parameter) {
+				values[i].m_value -= rate * gradient_acc[i];
+			}
+		}
+	}
+
+}
+
+
 void ComputationGraph::forwards(float* data_values) {
 	//first we find all the nodes with no parents
 	if (cached_topological_sorted_descendants.size() == 0) {
 		unordered_set <Index> checked;
 		unordered_set <Index> has_parent;
 
-		for (int i = 0; i < MAX_NODES; i++) {
+		for (int i = 0; i < next_free_index; i++) {
 			if (used[i]) {
 				checked.insert(i);
 				for (int k = 0; k < MAX_INPUTS; k++) {
@@ -244,7 +283,7 @@ void ComputationGraph::backwards(float* data_values) {
 }
 
 void ComputationGraph::zero_gradients() {
-	for (int i = 0; i < MAX_NODES; i++) {
+	for (int i = 0; i < next_free_index; i++) {
 		if (used[i]) {
 			values[i].m_gradient = 0.f;
 			values[i].m_gradient_calculated = false;
@@ -418,10 +457,10 @@ json ComputationGraph::to_json(Index* indices, const ImVec2& origin, int num) co
 
 	json unmatched_outputs;
 	int unmatched_output_index = 0;
-	for (int i = 0; i < MAX_NODES; i++) {
+	for (int i = 0; i < next_free_index; i++) {
 		if (used[i]) {
 			if (index_to_json_index.find(i) == index_to_json_index.end()) {
-				for (int j = 0; j < MAX_INPUTS; j++) {
+				for (int j = 0; j < next_free_index; j++) {
 					if (values[i].m_inputs[j].node != NULL_INDEX) {
 						if (index_to_json_index.find(values[i].m_inputs[j].node) != index_to_json_index.end()) {
 							json unmatched_output;
@@ -590,7 +629,7 @@ void ComputationGraph::delete_selected_nodes() {
 
 json ComputationGraph::to_json() const {
 	unsigned node_count = 0;
-	for (int i = 0; i < MAX_NODES; i++) {
+	for (int i = 0; i < next_free_index; i++) {
 		if (used[i]) {
 			node_count++;
 		}
@@ -599,7 +638,7 @@ json ComputationGraph::to_json() const {
 	Index* indices = new Index[node_count];
 
 	node_count = 0;
-	for (int i = 0; i < MAX_NODES; i++) {
+	for (int i = 0; i < next_free_index; i++) {
 		if (used[i]) {
 			indices[node_count++] = values[i].m_index;
 		}
@@ -706,6 +745,11 @@ void DataSource::update_image(ComputationGraph* graph) {
 		max.x = ImMax(max.x, data[i].x);
 		max.y = ImMax(max.y, data[i].y);
 	}
+
+	min.x -= (max.x - min.x) * 0.1f;
+	min.y -= (max.y - min.y) * 0.1f;
+	max.x += (max.x - min.x) * 0.1f;
+	max.y += (max.y - min.y) * 0.1f;
 
 	if (graph && graph->current_result_node) {
 		for (int x = 0; x < BACKGROUND_IMAGE_RESOLUTION; x++) {
@@ -1146,7 +1190,7 @@ void ComputationGraph::show_connections(Index i, vector<Function>& functions) {
 					connection.start = currentValue.m_inputs[input];
 					connection.end.node = i;
 					connection.end.slot = input;
-					if (values[connection.start.node].m_parent == NULL_INDEX || values[connection.end.node].m_parent == NULL_INDEX ||
+						if (values[connection.start.node].m_parent == NULL_INDEX || values[connection.end.node].m_parent == NULL_INDEX ||
 						values[connection.start.node].m_parent != values[connection.end.node].m_parent) {
 						show_connection(connection);
 					}
@@ -1259,7 +1303,7 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 
 			ImNodes::GetStyle().Flags &= ~ImNodesStyleFlags_GridLines;
 			ImNodes::StyleColorsDark();
-			for (int i = 0; i < MAX_NODES; i++) {
+			for (int i = 0; i < next_free_index; i++) {
 				if (used[i]) {
 					Value& currentValue = values[i];
 
@@ -1269,7 +1313,7 @@ void ComputationGraph::show(const int editor_id, bool* open, std::vector<Functio
 				}
 			}
 
-			for (int i = 0; i < MAX_NODES; i++) {
+			for (int i = 0; i < next_free_index; i++) {
 				if (used[i] && values[i].m_operation != Operation::Function) {
 					show_connections(i, functions);
 				}

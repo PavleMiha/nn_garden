@@ -84,6 +84,7 @@ class ComputationGraph {
 public:
 	bool				   used[MAX_NODES];
 	Value				   values[MAX_NODES];
+	float				   gradient_acc[MAX_NODES];
 	Index				   parent[MAX_NODES];
 	FunctionNodeData	   function_node_data[MAX_NODES];
 	Index				   current_backwards_node = NULL_INDEX;
@@ -124,11 +125,11 @@ public:
 
 	void randomize_parameters();
 	
-	void do_stochastic_gradient_descent(float learning_rate);
+	void do_stochastic_gradient_descent_step(float learning_rate);
+	void do_stochastic_gradient_descent(float learning_rate, int batch_size, int& current_point, const vector<int> shuffled_points);
 
 	void forwards(float* data_values);
 	void backwards(float* data_values);
-
 
 	void initialise() {
 		data_source.load("flat.csv");

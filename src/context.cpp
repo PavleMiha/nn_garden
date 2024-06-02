@@ -54,14 +54,15 @@ void Context::show_training_menu(bool* open) {
 			ImGui::Text("Learning Rate:");
 			ImGui::SameLine();
 			ImGui::PushItemWidth(120);
-			ImGui::InputFloat("##learning_rate", &learning_rate, 0.01f);
+			ImGui::InputFloat("##learning_rate", &learning_rate, 0.001f);
 			ImGui::PopItemWidth();
+			ImGui::InputInt("##batch_size", &batch_size, 1);
 
 			ImGui::SameLine();
 				
 			if (ImGui::Button(ICON_FA_ARROW_LEFT))
 			{
-				main_graph.do_stochastic_gradient_descent(learning_rate);
+				main_graph.do_stochastic_gradient_descent_step(learning_rate);
 			}
 
 			if (ImGui::BeginItemTooltip()) {
@@ -76,6 +77,11 @@ void Context::show_training_menu(bool* open) {
 				}
 			}
 			else if (ImGui::Button(ICON_FA_PLAY)) {
+				m_shuffled_data_points.clear();
+				for (int i = 0; i < main_graph.data_source.data.size(); i++) {
+					m_shuffled_data_points.push_back(i);
+				}
+				std::random_shuffle(m_shuffled_data_points.begin(), m_shuffled_data_points.end());
 				m_training = true;
 			}
 			ImGui::SameLine();
@@ -160,14 +166,14 @@ void Context::show(bool* open) {
 
 		training_steps_this_interval = 0;
 
-		while (glfwGetTime() - startTime < (1.0f/30.f)) {
-			main_graph.data_source.set_current_data_point(
-				rand() % main_graph.data_source.data.size());
-			main_graph.do_stochastic_gradient_descent(learning_rate);
+		while (glfwGetTime() - startTime < (1.0f/60.f)) {
+			//main_graph.do_stochastic_gradient_descent_step(learning_rate);
+			main_graph.do_stochastic_gradient_descent(learning_rate, batch_size, m_current_shuffled_data_point, m_shuffled_data_points);
+
 			current_average_error = main_graph.values[main_graph.current_backwards_node].m_value * 0.001f + current_average_error * 0.999f;
 			
-			training_steps++;
-			training_steps_this_interval++;
+			training_steps += batch_size;
+			training_steps_this_interval += batch_size;
 		}
 		main_graph.data_source.update_image(&main_graph);
 	}

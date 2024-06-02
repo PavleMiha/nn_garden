@@ -78,14 +78,14 @@ vector<Index> Value::get_topological_sorted_descendants_inner(unordered_set<Inde
 	return sorted_descendants;
 }
 
-float Value::get_input_value(Value* values, int input, float* data_values) {
+inline float Value::get_input_value(Value* values, int input, float* data_values) {
 	if (m_inputs[input].node == NULL_INDEX)
 		return 0;
 	else
 		return values[m_inputs[input].node].get_value(m_inputs[input].slot, data_values);
 }
 
-float Value::get_value(int slot, float* data_values) {
+inline float Value::get_value(int slot, float* data_values) {
 	if (m_operation == Operation::DataSource) {
 		return data_values[slot];
 	}

@@ -7,6 +7,7 @@ public:
 	Index					   current_backwards_node = NULL_INDEX;
 	ComputationGraph		   main_graph;
 	float					   learning_rate = 0.01f;
+	int						   batch_size = 50;
 	int						   training_steps = 0;
 	int						   training_steps_this_interval = 0;
 	float					   current_average_error = 0;
@@ -16,6 +17,8 @@ public:
 
 	double					   tps_last_time;
 
+	vector<int>				   m_shuffled_data_points;	
+	int						   m_current_shuffled_data_point;	
 	bool					   m_training = false;	
 
 	Context() {

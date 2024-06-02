@@ -29,17 +29,19 @@ def generate_dataset3(num_points, noise_level):
 
 # Dataset 4: Two interleaved spirals
 def generate_dataset4(num_points, noise_level):
-    t = np.linspace(0, 6 * np.pi, num_points)
+    t = np.linspace(1, 8 * np.pi, num_points)
     r = t
     X_zero = np.array([r * np.cos(t), r * np.sin(t)]).T
-    X_one = np.array([(r + 3) * np.cos(t), (r + 3) * np.sin(t)]).T
+    X_one = np.array([-r * np.cos(t), -r * np.sin(t)]).T
     X = np.vstack((X_zero, X_one))
     y = np.concatenate((np.zeros(num_points), np.ones(num_points)))
     X += np.random.normal(0, noise_level, X.shape)
+    X /= 10.0
     return X, y
 
+
 # Generate datasets
-num_points = 2000
+num_points = 1000
 noise_level = 0.1
 
 X1, y1 = generate_dataset1(num_points, noise_level)
