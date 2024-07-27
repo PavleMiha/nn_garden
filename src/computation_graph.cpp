@@ -193,10 +193,17 @@ void ComputationGraph::do_stochastic_gradient_descent_step(float learning_rate) 
 	}
 }
 
-void ComputationGraph::do_stochastic_gradient_descent(float learning_rate, int batch_size, int& current_point, const vector<int> shuffled_points) {
+void ComputationGraph::do_stochastic_gradient_descent(float learning_rate, int batch_size, int& current_point, vector<int>& shuffled_points) {
 	memset(gradient_acc, 0, sizeof(gradient_acc));
 
 	for (int i = 0; i < batch_size; i++) {
+		if (current_point == 0) {
+			shuffled_points.clear();
+			for (int i = 0; i < data_source.data.size(); i++) {
+				shuffled_points.push_back(i);
+			}
+			std::random_shuffle(shuffled_points.begin(), shuffled_points.end());
+		}
 		data_source.current_data_point = shuffled_points[current_point];
 		current_point = (current_point+1)%shuffled_points.size();
 		forwards(&data_source.data[data_source.current_data_point].x);

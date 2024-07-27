@@ -126,7 +126,7 @@ public:
 	void randomize_parameters();
 	
 	void do_stochastic_gradient_descent_step(float learning_rate);
-	void do_stochastic_gradient_descent(float learning_rate, int batch_size, int& current_point, const vector<int> shuffled_points);
+	void do_stochastic_gradient_descent(float learning_rate, int batch_size, int& current_point, vector<int>& shuffled_points);
 
 	void forwards(float* data_values);
 	void backwards(float* data_values);
