@@ -77,7 +77,7 @@ public:
 	bool load(const char* filename);
 
 	void update_image(ComputationGraph* graph = nullptr);
-	void show_body(int attribute_index);
+	void show_body(int attribute_index, float size);
 };
 
 class ComputationGraph {
@@ -179,6 +179,7 @@ public:
 
 	void create_connection(Connection connection);
 
+	void update();
 	void show(const int editor_id, bool* open, std::vector<Function>& functions, const char* name);
 
 	bool selected = false;

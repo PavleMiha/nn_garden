@@ -17,6 +17,19 @@ int Context::create_function(const json& json_data) {
 	return 0;
 }
 
+void Context::show_data(bool* open) {
+	if (*open) {
+		if (ImGui::Begin("Data Menu", open)) {
+
+			float size = ImMin(ImGui::GetWindowSize().x - 30.f, ImGui::GetWindowSize().y - 70.0f);
+
+			main_graph.data_source.show_body(-1, size);
+			ImGui::End();
+		}
+
+	}
+}
+
 void Context::show_training_menu(bool* open) {
 	if (*open) {
 		//ImGui::SetNextWindowSize(ImVec2(200, 100));
@@ -91,9 +104,9 @@ void Context::show_training_menu(bool* open) {
 
 			double current_time = ImGui::GetTime();
 
-			double delta = tps_last_time - current_time;
+			double delta = current_time - tps_last_time;
 			ImGui::Text("Steps: %i", training_steps);
-			ImGui::Text("tps: %.3f", (delta / (double)training_steps_this_interval) * 1000.0f);
+			ImGui::Text("tps: %.3f", ((double)training_steps_this_interval/delta));
 			ImGui::SameLine();
 			ImGui::Text("Average Error: %.3f", current_average_error);
 			tps_last_time = current_time;
@@ -134,26 +147,56 @@ void Context::create_function_graph(int function_id) {
 	int num_nodes = function.m_json["nodes"].size();
 
 	function_graph.values[input_node_index].m_variableNumConnections = 0;
-	for (auto& node : function.m_json["nodes"]) {
+	for (int i = 0; i < function.m_json["unmatched_inputs"].size(); i++) {
+		function_graph.values[function.m_json["unmatched_inputs"][i]["end"]].m_inputs[function.m_json["unmatched_inputs"][i]["end_slot"]].node = input_node_index;
+		
+		function_graph.values[function.m_json["unmatched_inputs"][i]["end"]].m_inputs[function.m_json["unmatched_inputs"][i]["end_slot"]].slot = function_graph.values[input_node_index].m_variableNumConnections;
+
+		function_graph.values[input_node_index].m_variableNumConnections++;
+
+	}
+
+	/*for (auto& node : function.m_json["nodes"]) {
 		for (int i = 0; i < node["inputs"].size(); i++) {
 			if (node["inputs"][i]["index"] >= num_nodes) {
 				Socket& input = function_graph.values[node["index"]].m_inputs[i];
 				input.node = input_node_index;
-				input.slot = node["inputs"][i]["index"]-num_nodes;
+				input.slot = node["inputs"][i]["index"] - num_nodes;
 				function_graph.values[input_node_index].m_variableNumConnections++;
 			}
 		}
-	}
+	}*/
 
 	function_graph.values[output_node_index].m_variableNumConnections = 0;
 
 	for (int i = 0; i < function.m_json["unmatched_outputs"].size(); i++) {
-		function_graph.values[output_node_index].m_inputs[i].node = functions[function_id].m_json["unmatched_outputs"][i]["index"];
+		function_graph.values[output_node_index].m_inputs[i].node = functions[function_id].m_json["unmatched_outputs"][i]["start"];
 		function_graph.values[output_node_index].m_variableNumConnections++;
 	}
+
+	ImVec2 average_pos{0.f, 0.f};
+	int num_pos_nodes = 0;
+	float min_x = FLT_MAX;
+	float max_x = -FLT_MAX;
+	
+	for (int i = 0; i < function_graph.next_free_index; i++) {
+		if (function_graph.used[i] && i != input_node_index && i != output_node_index) {
+			average_pos += function_graph.values[i].m_position;
+			num_pos_nodes++;
+			min_x = ImMin(min_x, function_graph.values[i].m_position.x);
+			max_x = ImMax(max_x, function_graph.values[i].m_position.x);
+		}
+	}
+
+	average_pos = average_pos / num_pos_nodes;
+
+	function_graph.values[input_node_index].m_position = ImVec2(min_x - 200.f, average_pos.y);
+	function_graph.values[output_node_index].m_position = ImVec2(max_x + 200.f, average_pos.y);
 }
 
 void Context::show(bool* open) {
+	training_steps_this_interval = 0;
+
 	if (m_training && main_graph.current_backwards_node != NULL_INDEX) {
 		double startTime = glfwGetTime();
 		Index data_source_index = NULL_INDEX;
@@ -164,13 +207,15 @@ void Context::show(bool* open) {
 			}
 		}
 
-		training_steps_this_interval = 0;
 
 		while (glfwGetTime() - startTime < (1.0f/60.f)) {
 			//main_graph.do_stochastic_gradient_descent_step(learning_rate);
 			main_graph.do_stochastic_gradient_descent(learning_rate, batch_size, m_current_shuffled_data_point, m_shuffled_data_points);
 
-			current_average_error = main_graph.values[main_graph.current_backwards_node].m_value * 0.001f + current_average_error * 0.999f;
+			if (current_average_error <= 0.0f)
+				current_average_error = main_graph.values[main_graph.current_backwards_node].m_value;
+			else
+				current_average_error = main_graph.values[main_graph.current_backwards_node].m_value * 0.001f + current_average_error * 0.999f;
 			
 			training_steps += batch_size;
 			training_steps_this_interval += batch_size;
@@ -178,6 +223,7 @@ void Context::show(bool* open) {
 		main_graph.data_source.update_image(&main_graph);
 	}
 
+	main_graph.update();
 	main_graph.show(0, open, functions, "main graph");
 	for (int function_id = 0; function_id < functions.size(); function_id++) {
 		if (functions[function_id].m_is_open) {
@@ -210,6 +256,7 @@ void Context::save(const char* filename) {
 		function_json["json"] = functions[i].m_json;
 		function_json["num_inputs"] = functions[i].m_num_inputs;
 		function_json["num_outputs"] = functions[i].m_num_outputs;
+		function_json["id"] = functions[i].m_id;
 		function_json["name"] = functions[i].m_name;
 		functions_json.push_back(function_json);
 	}
@@ -255,6 +302,10 @@ void Context::load(const char* filename) {
 		function.m_is_open = false;
 		function.m_num_inputs = content["functions"][i]["num_inputs"];
 		function.m_num_outputs = content["functions"][i]["num_outputs"];
+		if (content["functions"][i].contains("id"))
+			function.m_id = content["functions"][i]["id"];
+		else
+			function.m_id = i;
 		std::string name = content["functions"][i]["name"];
 		strcpy(function.m_name, name.c_str());
 		functions.push_back(function);

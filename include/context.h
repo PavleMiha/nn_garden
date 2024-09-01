@@ -28,6 +28,8 @@ public:
 
 	int create_function(const json& json_data);
 
+	void show_data(bool* open);
+
 	void show_training_menu(bool* open);
 
 	void show_function_list(bool* open);

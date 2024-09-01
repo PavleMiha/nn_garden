@@ -770,7 +770,7 @@ void DataSource::update_image(ComputationGraph* graph) {
 
 				//unsigned int red = 255 - (100 * ImClamp(result, 0.f, 1.f));
 				unsigned int red = 255 - (100 * ImClamp(result, 0.f, 1.f));
-				unsigned int green = 255 - (100 * ImAbs(result)/1.5f);
+				unsigned int green = 255 - (100 * ImClamp(ImAbs(result), 0.f, 1.f)/1.5f);
 				unsigned int blue = 255 - (100 * ImClamp(-result, 0.f, 1.f));
 ///todo double buffer and only update background
 				((uint32_t*)background_image_data[current_image_index] )[x + (BACKGROUND_IMAGE_RESOLUTION - 1 - y) * BACKGROUND_IMAGE_RESOLUTION] = IM_COL32(red, green, blue, 255);
@@ -819,15 +819,15 @@ void DataSource::set_current_data_point(int index) {
 	//image_handle = bgfx::createTexture2D((uint16_t)28, (uint16_t)28, false, 1, bgfx::TextureFormat::A8, 0, mem);
 }
 
-void DataSource::show_body(int attribute_index) {
+void DataSource::show_body(int attribute_index, float size) {
 
 	if (image_handle[current_image_index].idx != UINT16_MAX) {
 		ImVec2 lastPos = ImGui::GetCursorScreenPos();
 
-		ImGui::Image((ImTextureID)background_image_handle[(current_image_index+1)%3].idx, ImVec2(100, 100));
+		ImGui::Image((ImTextureID)background_image_handle[(current_image_index+1)%3].idx, ImVec2(size, size));
 		ImGui::SetCursorScreenPos(lastPos);
 
-		ImGui::Image((ImTextureID)image_handle[(current_image_index + 1) % NUM_IMAGES].idx, ImVec2(100, 100));
+		ImGui::Image((ImTextureID)image_handle[(current_image_index + 1) % NUM_IMAGES].idx, ImVec2(size, size));
 	}
 
 	float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
@@ -839,25 +839,27 @@ void DataSource::show_body(int attribute_index) {
 
 //	ImGui::PushItemWidth(node_width - label_width);
 
-	ImNodes::BeginOutputAttribute(attribute_index);
-	char text[128] = {};
-	sprintf(text, "%.1f x", data[current_data_point].x);
-	float label_width = ImGui::CalcTextSize(text).x;
-	ImGui::Indent(node_width - label_width);
-	ImGui::Text(text);
-	ImNodes::EndOutputAttribute();
-	ImNodes::BeginOutputAttribute(attribute_index + 1);
-	sprintf(text, "%.1f y", data[current_data_point].y);
-	label_width = ImGui::CalcTextSize(text).x;
-	ImGui::Indent(node_width - label_width);
-	ImGui::Text(text);
-	ImNodes::EndOutputAttribute();
-	ImNodes::BeginOutputAttribute(attribute_index + 2);
-	sprintf(text, "%.0f label", data[current_data_point].label);
-	label_width = ImGui::CalcTextSize(text).x;
-	ImGui::Indent(node_width - label_width);
-	ImGui::Text(text);
-	ImNodes::EndOutputAttribute();
+	if (attribute_index > -1) {
+		ImNodes::BeginOutputAttribute(attribute_index);
+		char text[128] = {};
+		sprintf(text, "%.1f x", data[current_data_point].x);
+		float label_width = ImGui::CalcTextSize(text).x;
+		ImGui::Indent(node_width - label_width);
+		ImGui::Text(text);
+		ImNodes::EndOutputAttribute();
+		ImNodes::BeginOutputAttribute(attribute_index + 1);
+		sprintf(text, "%.1f y", data[current_data_point].y);
+		label_width = ImGui::CalcTextSize(text).x;
+		ImGui::Indent(node_width - label_width);
+		ImGui::Text(text);
+		ImNodes::EndOutputAttribute();
+		ImNodes::BeginOutputAttribute(attribute_index + 2);
+		sprintf(text, "%.0f label", data[current_data_point].label);
+		label_width = ImGui::CalcTextSize(text).x;
+		ImGui::Indent(node_width - label_width);
+		ImGui::Text(text);
+		ImNodes::EndOutputAttribute();
+	}
 }
 
 void ComputationGraph::render_gradient(Index i, float node_width) {
@@ -1138,7 +1140,7 @@ void ComputationGraph::show_node(Index i, vector<Function>& functions) {
 	break;
 	case Operation::DataSource:
 	{
-		data_source.show_body(attribute_index + MAX_INPUTS);
+		data_source.show_body(attribute_index + MAX_INPUTS, 100.f);
 	}	
 	break;
 	default:
@@ -1253,13 +1255,16 @@ void ComputationGraph::create_connection(Connection link) {
 	apply_operation(EditOperation::add_connection(connection, patched_end_node));
 }
 
-void ComputationGraph::show(const int editor_id, bool* open, std::vector<Function>& functions, const char* name) {
+void ComputationGraph::update() {
 	forwards(&data_source.data[data_source.current_data_point].x);
 
 	zero_gradients();
 
 	if (current_backwards_node != NULL_INDEX)
 		backwards(&data_source.data[data_source.current_data_point].x);
+}
+
+void ComputationGraph::show(const int editor_id, bool* open, std::vector<Function>& functions, const char* name) {
 
 	auto flags = ImGuiWindowFlags_MenuBar;
 
