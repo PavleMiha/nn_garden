@@ -1,8 +1,8 @@
 # MLGarden
 
-VisualML allows you to go from an empty slate to a relatively complex neural network, using a visual editor, no linear algebra, and nothing past high school math. You can play along by downloading a release and building your own networks while you read.
+MLGarden allows you to go from an empty slate to a relatively complex neural network, using a visual editor, no linear algebra, and nothing past high school math. You can play along by downloading a release and building your own networks while you read.
 
-VisualML was inspired by watching Karpathy's [spelled-out intro to neural networks](https://www.youtube.com/watch?v=VMj-3S1tku0) and wishing that I could play with the visual computation graphs directly!
+MLGarden was inspired by watching Karpathy's [spelled-out intro to neural networks](https://www.youtube.com/watch?v=VMj-3S1tku0) and wishing that I could play with the visual computation graphs directly!
 <p align="center">
 <img src="https://github.com/user-attachments/assets/e22ebfd3-8181-429b-9e46-03fa3b8063e9" width="700" >
 </p>
