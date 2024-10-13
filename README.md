@@ -90,11 +90,21 @@ This is our dataset, each dot is a data point, and each point has an x coordinat
 
 So we will make a prediction, somehow, and then subtract from that prediction the result we know is right (the label), and then square that difference (so that the error is always positive, and so that decreasing the error is always good). Note that there are actually other was of defining the error function, they mostly all work as long as you get a more useful result when the error goes down.
 
-How do we predict this value? Well in this case, just by looking at it and thinking back to high school math, we don't even need the y value - we can take the x value, multiply it by some value, add some value, and then slam the result to either -1 or 1. A good way of doing that is with the [tanh](https://reference.wolfram.com/language/ref/Tanh.html#:~:text=Tanh%20is%20the%20hyperbolic%20tangent,of%20the%20natural%20logarithm%20Log.) function.
+How do we predict this value? Back propagation is pretty forgiving, in this case as long as we have a function that has the ability to describe this dataset, it'll find the right free parameters for it. Now it would be nicer if we didn't have to go in and manually poke the parameters around, so there's a Training window that'll do this process for you, you simply press play and it'll nudge every free paramater by it's derivative to the backprop node (usually the error), go to the next data point, and do it again. As an additional nicety it'll color in the dataset window based on the result node - checking what the result would be for every point in the graph window. Let's try a potential function, just taking the x coordinate of each point, multiplying it by some value, adding some other value to it, and then using [tanh](https://reference.wolfram.com/language/ref/Tanh.html#:~:text=Tanh%20is%20the%20hyperbolic%20tangent,of%20the%20natural%20logarithm%20Log.) to slam it to either -1 or 1.
 
-p align="center">
-<img src="https://github.com/user-attachments/assets/f7f955f1-1995-4fbd-92f8-c1a5cd39f691" width="700" >
+<p align="center">
+<img src="https://github.com/user-attachments/assets/918c9147-a3b7-4804-9be6-5532cf5258d9" width="700" >
 </p>
+
+Close, but it seems like the model can only really predict vertical lines - this makes sense, it only knows about each point's x coordinate, it can only represent . Let's instead add in the y coordinate, also multiplied by a parameter, to the x coordinate, and then run the training again.
+
+<p align="center">
+<img src="https://github.com/user-attachments/assets/90a0845d-2c17-4229-bccb-1c944c60b0f7" width="700" >
+</p>
+
+We did it! Although, we probably could have figured out an equation for this dataset by hand, let's try some tougher ones.
+
+You can download MLGarden and play around with different functions then slam the result to either -1 or 1. A good way of doing that is with the  function.
 
 
 After we have this function defined, we can go point by point in the dataset and adjust our free parameters to make the error smaller and smaller and smaller. Let's try it.
