@@ -70,20 +70,36 @@ You can scale this up to literally billions of operations! But getting back to o
 Can we systematise this for any result we might want? We could create an **error function** that quantifies how wrong we are. A good example here is to take the result of the graph, subtract the desired result (10) from it, and then take the square of that difference, so that value will always go up as the error goes up. Then we could take the derivative of this error, and nudge all the parameters to make the error go down. That's the basis of all deep learning! As long as you can define an error function, you can optimise a large computation graph to lower that error. Let's see what that looks like:
 
 <p align="center">
-<img src="https://github.com/user-attachments/assets/fe9fd006-9932-467e-a13f-e0d59683a16b" width="700" >
+<img src="https://github.com/user-attachments/assets/3195aa37-b2fd-4227-acf0-42293c1a7b95" width="700" >
 </p>
 
-Now the we just have to nudge all the parameters by an amount that's the inverse of the derivative. We could for example take the derivative and multiply it by 0.01, and add it to each parameter's value. The 0.01 would be the **learning rate**.
 
-But how is this useful? Basically anything that you can calculate and you can define an error rate for, you can now iteratively improve! If your error rate is how bad you are at predicting the next character in a piece of text, lowering that error rate makes your computation graph better at predicting text! Let's start with something simpler, sorting dots into 2 categories:
+Now that we have our error funtion, we just have to nudge all the parameters by an amount that's the inverse of the derivative. We could for example take the derivative and multiply it by 0.01, and add it to each parameter's value. The 0.01 would be the **learning rate**.
+
+But how is this useful? Basically anything that you can calculate and you can define an error rate for, you can now iteratively improve! If your error rate is how bad you are at predicting the next character in a piece of text, lowering that error rate makes your computation graph better at predicting text, and it turns out that if get good enough at predicting the next token of text Let's start with something simpler, sorting dots into 2 categories:
 
 <p align="center">
-<img src="https://github.com/user-attachments/assets/faaa2873-92b4-42bd-a6bc-033116fd1235" width="700" >
+<img src="https://github.com/user-attachments/assets/12bb658e-cdea-4d7a-b266-cf7b0cc367e7" width="700" >
 </p>
 
-This is our dataset, each dot is a data point, and each point has an x coordinate, and a y coordinate,
+This is our dataset, each dot is a data point, and each point has an x coordinate, a y coordinate, and a label. Our artificial task is to predict, for a given set of coordinates, if the label should be 1- (blue in the image) or 1 (red). So let's define our error function first:
 
-...TBC...
+<p align="center">
+<img src="https://github.com/user-attachments/assets/e406ba08-2655-41b0-ad87-2c92e966d1f3" width="700" >
+</p>
+
+So we will make a prediction, somehow, and then subtract from that prediction the result we know is right (the label), and then square that difference (so that the error is always positive, and so that decreasing the error is always good). Note that there are actually other was of defining the error function, they mostly all work as long as you get a more useful result when the error goes down.
+
+How do we predict this value? Well in this case, just by looking at it and thinking back to high school math, we don't even need the y value - we can take the x value, multiply it by some value, add some value, and then slam the result to either -1 or 1. A good way of doing that is with the [tanh](https://reference.wolfram.com/language/ref/Tanh.html#:~:text=Tanh%20is%20the%20hyperbolic%20tangent,of%20the%20natural%20logarithm%20Log.) function.
+
+p align="center">
+<img src="https://github.com/user-attachments/assets/f7f955f1-1995-4fbd-92f8-c1a5cd39f691" width="700" >
+</p>
+
+
+After we have this function defined, we can go point by point in the dataset and adjust our free parameters to make the error smaller and smaller and smaller. Let's try it.
+
+
 
 ## How to build
 
