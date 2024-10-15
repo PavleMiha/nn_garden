@@ -104,11 +104,19 @@ Close, but it seems like the model can only really predict vertical lines - this
 
 We did it! Although, we probably could have figured out an equation for this dataset by hand, let's try some tougher ones.
 
-You can download MLGarden and play around with different functions then slam the result to either -1 or 1. A good way of doing that is with the  function.
+<p align="center">
+<img src="https://github.com/user-attachments/assets/0710da57-7f83-416c-aedf-ab1637777017" width="700" >
+</p>
 
+A donut. Let's try it with out previous model
 
 After we have this function defined, we can go point by point in the dataset and adjust our free parameters to make the error smaller and smaller and smaller. Let's try it.
 
+<p align="center">
+<img src="https://github.com/user-attachments/assets/7ee400fd-25cd-4c59-b0d6-5fd5d2b3bbf2)" width="700" >
+</p>
+
+Very quickly the model seems to give up, and simply label everything as halfway in between both labels - this makes sense. The model can only express datasets that are split by a line that passes through 0, 0. That's its *inductive bias*. So in this case, what reduces the error is to simply predict 0 for whichever point you pass in. 
 
 
 ## How to build
