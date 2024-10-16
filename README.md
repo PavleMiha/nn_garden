@@ -118,7 +118,7 @@ After we have this function defined, we can go point by point in the dataset and
 
 Very quickly the model seems to give up, and simply label everything as halfway in between both labels - this makes sense. The model can only express datasets that are split by a line that passes through 0, 0. That's its *inductive bias*. So in this case, what reduces the error is to simply predict 0 for whichever point you pass in. 
 
-
+WIP -- TBC
 ## How to build
 
 ```
